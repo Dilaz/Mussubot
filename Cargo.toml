@@ -1,0 +1,43 @@
+[package]
+name = "mussubot"
+version = "0.1.0"
+edition = "2021"
+description = "A Discord bot that integrates with Google Calendar and sends scheduled messages"
+authors = ["Risto Viitanen"]
+
+[dependencies]
+# Discord API client
+serenity = { version = "0.12.4", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "cache"] }
+# Command framework for Serenity
+poise = "0.6.1"
+# Async runtime
+tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
+# Error handling
+thiserror = "2.0.12"
+miette = { version = "7.5.0", features = ["fancy"] }
+# Logging
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+# Google Calendar API
+google-calendar3 = "6.0.0+20240523"
+yup-oauth2 = "12.1.0"
+# Scheduling
+chrono = "0.4.40"
+chrono-tz = "0.10.3"
+# Serialization
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+toml = "0.8.20"
+# Async traits
+async-trait = "0.1.88"
+dotenvy = "0.15.7"
+reqwest = { version = "0.12.15", features = ["json"] }
+url = "2.5.4"
+tokio-util = "0.7.14"
+webbrowser = "1.0.4"
+futures = "0.3.31"
+# Actor framework
+actix = "0.13.5"
+actix-rt = "2.10.0"
+# Redis
+redis = { version = "0.24.0", features = ["tokio-comp", "connection-manager"] }
