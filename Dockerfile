@@ -16,7 +16,7 @@ RUN mkdir -p src && \
 COPY src/ ./src/
 
 # Build the actual application
-RUN cargo build --release
+RUN cargo build --release --bin mussubot
 
 # Runtime stage
 FROM gcr.io/distroless/cc-debian12
