@@ -1,5 +1,6 @@
 use crate::error::BotResult;
 use crate::config::Config;
+use crate::components::ComponentManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -12,6 +13,7 @@ pub mod calendar;
 pub struct CommandContext {
     // Add any shared command context here
     pub config: Arc<RwLock<Config>>,
+    pub component_manager: Option<Arc<ComponentManager>>,
 }
 
 impl CommandContext {
@@ -19,7 +21,14 @@ impl CommandContext {
     pub fn new(config: Arc<RwLock<Config>>) -> Self {
         Self {
             config,
+            component_manager: None,
         }
+    }
+    
+    /// Set the component manager
+    pub fn with_component_manager(mut self, component_manager: Arc<ComponentManager>) -> Self {
+        self.component_manager = Some(component_manager);
+        self
     }
 }
 

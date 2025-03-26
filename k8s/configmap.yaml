@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mussubotti-config
+  namespace: mussubot
+data:
+  TIMEZONE: "Europe/Helsinki"
+  BOT_ACTIVITY: "Leikkii lankakerällä"
+  CALENDAR_CHANNEL_ID: ""
+  GUILD_ID: ""
+  REDIS_URL: "redis://redis-service:6379" 

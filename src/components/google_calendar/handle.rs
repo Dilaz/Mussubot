@@ -1,3 +1,4 @@
+use crate::components::redis_service::RedisActorHandle;
 use crate::error::BotResult;
 use crate::config::Config;
 use super::models::CalendarEvent;
@@ -15,11 +16,11 @@ pub struct GoogleCalendarHandle {
 
 impl GoogleCalendarHandle {
     /// Create a new GoogleCalendarHandle and spawn the actor
-    pub fn new(config: Arc<RwLock<Config>>) -> Self {
+    pub fn new(config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> Self {
         use super::actor::GoogleCalendarActor;
         
         // Create the actor and get its handle
-        let (mut actor, handle) = GoogleCalendarActor::new(config);
+        let (mut actor, handle) = GoogleCalendarActor::new(config, redis_handle);
         
         // Spawn a task to run the actor
         let actor_task = tokio::spawn(async move {
@@ -35,6 +36,11 @@ impl GoogleCalendarHandle {
     /// Get upcoming events from the calendar
     pub async fn get_upcoming_events(&self) -> BotResult<Vec<CalendarEvent>> {
         self.actor_handle.get_upcoming_events().await
+    }
+
+    /// Check for new events since last check
+    pub async fn check_new_events(&self) -> BotResult<Vec<CalendarEvent>> {
+        self.actor_handle.check_new_events().await
     }
 
     /// Shutdown the actor

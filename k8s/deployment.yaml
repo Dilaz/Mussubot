@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mussubotti
+  namespace: mussubot
+  labels:
+    app: mussubotti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mussubotti
+  template:
+    metadata:
+      labels:
+        app: mussubotti
+    spec:
+      containers:
+      - name: mussubotti
+        image: ${IMAGE_REPO}:${IMAGE_TAG}
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: mussubotti-secrets
+        - configMapRef:
+            name: mussubotti-config
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+          requests:
+            memory: "128Mi"
+            cpu: "100m" 

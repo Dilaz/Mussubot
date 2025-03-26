@@ -1,5 +1,5 @@
 [package]
-name = "mussubot"
+name = "mussubotti"
 version = "0.1.0"
 edition = "2021"
 description = "A Discord bot that integrates with Google Calendar and sends scheduled messages"
@@ -29,7 +29,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 toml = "0.8.20"
 # Async traits
-async-trait = "0.1.88"
+async-trait = { version = "0.1.88"  }
 dotenvy = "0.15.7"
 reqwest = { version = "0.12.15", features = ["json"] }
 url = "2.5.4"
@@ -41,3 +41,13 @@ actix = "0.13.5"
 actix-rt = "2.10.0"
 # Redis
 redis = { version = "0.24.0", features = ["tokio-comp", "connection-manager"] }
+hyper = "1.6.0"
+hyper-rustls = "0.27.5"
+google-apis-common = "7.0.0"
+# Additional dependencies for calendar token binary
+uuid = { version = "1.7.0", features = ["v4"] }
+tiny_http = "0.12.0"
+
+[[bin]]
+name = "get_calendar_token"
+path = "src/bin/get_calendar_token.rs"

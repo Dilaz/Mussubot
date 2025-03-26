@@ -11,6 +11,7 @@ A modular Discord bot that integrates with Google Calendar to send notifications
 - 🔔 **New event notifications**: When events are added to the calendar, the bot sends a notification
 - 💾 **Configuration via environment variables**: All settings are loaded from `.env` file
 - 🎮 **Custom status**: The bot displays a custom "playing" status that can be configured
+- 🐳 **Docker support**: Run the bot with Redis using Docker Compose
 
 ## Getting Started
 
@@ -19,6 +20,7 @@ A modular Discord bot that integrates with Google Calendar to send notifications
 - Rust and Cargo (latest stable version)
 - Discord bot token
 - Google Calendar API credentials
+- Redis (for Docker setup)
 
 ### Setup
 
@@ -39,6 +41,19 @@ A modular Discord bot that integrates with Google Calendar to send notifications
    ```bash
    cargo run
    ```
+
+### Docker Setup
+
+You can also run the bot using Docker Compose:
+
+1. Make sure you have Docker and Docker Compose installed
+2. Set up your `.env` file with the appropriate configuration
+3. Run the bot with:
+   ```bash
+   docker-compose up -d
+   ```
+
+This will start both the bot and Redis service as defined in the `docker-compose.yaml` file.
 
 ### Discord Bot Setup
 
@@ -78,6 +93,11 @@ TIMEZONE=Europe/Helsinki
 
 # Bot activity status (default: "Leikkii lankakerällä")
 BOT_ACTIVITY=Leikkii lankakerällä
+
+# Redis connection URL
+# Use redis:6379 when running with docker-compose
+# Use 127.0.0.1:6379 when running locally
+REDIS_URL=redis://redis:6379
 ```
 
 ## Logging
@@ -93,6 +113,25 @@ RUST_LOG=debug,serenity=info,poise=info cargo run
 
 - `/ping` - Check if the bot is responsive
 - `/dummy [param]` - A dummy command that can be customized (placeholder for future implementations)
+- `/this_week [timezone]` - Get a list of this week's calendar events with optional timezone parameter
+
+## Docker Compose Configuration
+
+The project includes a `docker-compose.yaml` file to set up the bot and its Redis dependency:
+
+```yaml
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+```
 
 ## Adding New Components
 

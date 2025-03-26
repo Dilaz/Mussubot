@@ -3,49 +3,35 @@ use chrono::Utc;
 use reqwest::Client;
 use tokio::sync::RwLock;
 use std::sync::Arc;
-use redis::{Client as RedisClient, AsyncCommands};
+use crate::components::redis_service::RedisActorHandle;
 use crate::config::Config;
 use crate::error::{BotResult, google_calendar_error};
+
+// Constants
+const GOOGLE_OAUTH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 
 #[derive(Clone)]
 pub struct TokenManager {
     config: Arc<RwLock<Config>>,
-    redis_key: String,
     client: Client,
-    redis: RedisClient,
+    redis_handle: RedisActorHandle,
 }
 
 impl TokenManager {
-    pub fn new(config: Arc<RwLock<Config>>) -> Self {
-        // Set up Redis client with default localhost connection
-        let redis = RedisClient::open("redis://127.0.0.1/").expect("Failed to create Redis client");
-        
+    pub fn new(config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> Self {
         Self {
             config,
-            redis_key: "google_calendar_token".to_string(),
             client: Client::new(),
-            redis,
+            redis_handle,
         }
     }
 
     /// Get OAuth token, either from Redis or by requesting a new one
     pub async fn get_token(&self) -> BotResult<Value> {
         // Try to get token from Redis
-        let mut redis_conn = self.redis.get_async_connection().await
-            .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {}", e)))?;
+        let token_result = self.redis_handle.get_token().await?;
         
-        // Check if token exists in Redis
-        let token_exists: bool = redis_conn.exists(&self.redis_key).await
-            .map_err(|e| google_calendar_error(&format!("Redis error: {}", e)))?;
-            
-        if token_exists {
-            // Get token from Redis
-            let token_str: String = redis_conn.get(&self.redis_key).await
-                .map_err(|e| google_calendar_error(&format!("Failed to read token from Redis: {}", e)))?;
-            
-            let token: Value = serde_json::from_str(&token_str)
-                .map_err(|e| google_calendar_error(&format!("Failed to parse token JSON: {}", e)))?;
-            
+        if let Some(token) = token_result {
             // Check if token is expired
             if let Some(expiry) = token.get("expires_at").and_then(|v| v.as_i64()) {
                 let now = Utc::now().timestamp();
@@ -58,7 +44,7 @@ impl TokenManager {
         }
         
         // No token in Redis or no expiry, return error - manual setup required
-        Err(google_calendar_error("No valid token found. Please set up token manually in Redis."))
+        Err(google_calendar_error("No valid token found. Please set up token manually."))
     }
     
     /// Refresh an expired token
@@ -84,7 +70,7 @@ impl TokenManager {
             ("grant_type", "refresh_token".to_string()),
         ];
         
-        let response = self.client.post("https://oauth2.googleapis.com/token")
+        let response = self.client.post(GOOGLE_OAUTH_TOKEN_URL)
             .form(&params)
             .send()
             .await
@@ -104,7 +90,7 @@ impl TokenManager {
             .map_err(|e| google_calendar_error(&format!("Failed to parse token response: {}", e)))?;
         
         // Check for required fields
-        if !new_token.get("access_token").is_some() {
+        if new_token.get("access_token").is_none() {
             return Err(google_calendar_error("Token response missing 'access_token' field"));
         }
         
@@ -118,25 +104,18 @@ impl TokenManager {
         let expires_at = Utc::now().timestamp() + expires_in;
         token_data.insert("expires_at".to_string(), json!(expires_at));
         
-        // Save token to Redis
+        // Save token to Redis using the Redis actor
         let token_json = json!(token_data);
-        let mut redis_conn = self.redis.get_async_connection().await
-            .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {}", e)))?;
+        self.redis_handle.save_token(token_json.clone()).await?;
         
-        redis_conn.set(&self.redis_key, token_json.to_string()).await
-            .map_err(|e| google_calendar_error(&format!("Failed to save token to Redis: {}", e)))?;
-        
+        // Return the refreshed token
         Ok(token_json)
     }
     
     /// Manually set token in Redis (to be called from an admin command)
+    #[allow(dead_code)]
     pub async fn set_token(&self, token_json: Value) -> BotResult<()> {
-        let mut redis_conn = self.redis.get_async_connection().await
-            .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {}", e)))?;
-        
-        redis_conn.set(&self.redis_key, token_json.to_string()).await
-            .map_err(|e| google_calendar_error(&format!("Failed to save token to Redis: {}", e)))?;
-        
-        Ok(())
+        // Save token using Redis actor
+        self.redis_handle.save_token(token_json).await
     }
 } 

@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use toml;
 
 /// Default activity text for the bot
 pub const DEFAULT_ACTIVITY: &str = "Leikkii lankakerällä";
@@ -31,6 +30,12 @@ pub struct Config {
     pub timezone: String,
     /// Bot activity status text
     pub activity: String,
+    /// Redis connection URL
+    pub redis_url: String,
+    /// Daily notification time in 24h format (HH:MM)
+    pub daily_notification_time: String,
+    /// Weekly notification time in 24h format (HH:MM)
+    pub weekly_notification_time: String,
 }
 
 impl Config {
@@ -44,6 +49,10 @@ impl Config {
         let google_client_id = env::var("GOOGLE_CLIENT_ID").map_err(|_| env_error("GOOGLE_CLIENT_ID"))?;
         let google_client_secret = env::var("GOOGLE_CLIENT_SECRET").map_err(|_| env_error("GOOGLE_CLIENT_SECRET"))?;
         let google_calendar_id = env::var("GOOGLE_CALENDAR_ID").map_err(|_| env_error("GOOGLE_CALENDAR_ID"))?;
+        
+        // Optional notification times with defaults
+        let daily_notification_time = env::var("DAILY_NOTIFICATION_TIME").unwrap_or_else(|_| "06:00".to_string());
+        let weekly_notification_time = env::var("WEEKLY_NOTIFICATION_TIME").unwrap_or_else(|_| "06:00".to_string());
         
         // Parse numeric values
         let calendar_channel_id = env::var("CALENDAR_CHANNEL_ID")
@@ -61,6 +70,9 @@ impl Config {
         
         // Bot activity status
         let activity = env::var("BOT_ACTIVITY").unwrap_or_else(|_| String::from(DEFAULT_ACTIVITY));
+        
+        // Redis connection URL
+        let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| String::from("redis://127.0.0.1:6379"));
         
         // Initialize default components
         let mut components = HashMap::new();
@@ -86,6 +98,9 @@ impl Config {
             components,
             timezone,
             activity,
+            redis_url,
+            daily_notification_time,
+            weekly_notification_time,
         })
     }
     

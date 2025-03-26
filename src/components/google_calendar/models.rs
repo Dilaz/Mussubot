@@ -1,5 +1,5 @@
 /// Simplified calendar event representation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CalendarEvent {
     pub id: String,
     pub summary: Option<String>,

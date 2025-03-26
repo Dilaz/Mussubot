@@ -55,6 +55,20 @@ impl From<toml::de::Error> for Error {
     }
 }
 
+// Implement From for Redis errors
+impl From<redis::RedisError> for Error {
+    fn from(err: redis::RedisError) -> Self {
+        Error::Other(format!("Redis error: {}", err))
+    }
+}
+
+// Implement From for reqwest errors
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Other(format!("HTTP client error: {}", err))
+    }
+}
+
 /// Type alias for Result with our Error type
 pub type BotResult<T> = Result<T, Error>;
 

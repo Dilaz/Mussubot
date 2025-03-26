@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::error::{BotResult, google_calendar_error};
 use super::models::CalendarEvent;
 use super::token::TokenManager;
+use crate::components::redis_service::RedisActorHandle;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,11 +17,13 @@ pub struct GoogleCalendarActor {
     token_manager: TokenManager,
     client: Client,
     command_rx: mpsc::Receiver<GoogleCalendarCommand>,
+    redis_handle: RedisActorHandle,
 }
 
 /// Commands that can be sent to the Google Calendar actor
 pub enum GoogleCalendarCommand {
     GetUpcomingEvents(mpsc::Sender<BotResult<Vec<CalendarEvent>>>),
+    CheckNewEvents(mpsc::Sender<BotResult<Vec<CalendarEvent>>>),
     Shutdown,
 }
 
@@ -40,6 +43,16 @@ impl GoogleCalendarActorHandle {
         response_rx.recv().await
             .ok_or_else(|| google_calendar_error("Response channel closed"))?
     }
+
+    /// Check for new events since last check
+    pub async fn check_new_events(&self) -> BotResult<Vec<CalendarEvent>> {
+        let (response_tx, mut response_rx) = mpsc::channel(1);
+        self.command_tx.send(GoogleCalendarCommand::CheckNewEvents(response_tx)).await
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+        
+        response_rx.recv().await
+            .ok_or_else(|| google_calendar_error("Response channel closed"))?
+    }
     
     /// Shutdown the actor
     pub async fn shutdown(&self) -> BotResult<()> {
@@ -50,14 +63,15 @@ impl GoogleCalendarActorHandle {
 
 impl GoogleCalendarActor {
     /// Create a new actor and return its handle
-    pub fn new(config: Arc<RwLock<Config>>) -> (Self, GoogleCalendarActorHandle) {
+    pub fn new(config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> (Self, GoogleCalendarActorHandle) {
         let (command_tx, command_rx) = mpsc::channel(32);
         
         let actor = Self {
             config: Arc::clone(&config),
-            token_manager: TokenManager::new(Arc::clone(&config)),
+            token_manager: TokenManager::new(Arc::clone(&config), redis_handle.clone()),
             client: Client::new(),
             command_rx,
+            redis_handle,
         };
         
         let handle = GoogleCalendarActorHandle { command_tx };
@@ -79,6 +93,15 @@ impl GoogleCalendarActor {
                         self.client.clone(),
                     ).await;
                     
+                    // Save events to Redis if successful
+                    if let Ok(events) = &result {
+                        let _ = self.redis_handle.save_events(events.clone()).await;
+                    }
+                    
+                    let _ = response_tx.send(result).await;
+                },
+                GoogleCalendarCommand::CheckNewEvents(response_tx) => {
+                    let result = self.check_new_events().await;
                     let _ = response_tx.send(result).await;
                 },
                 GoogleCalendarCommand::Shutdown => {
@@ -202,5 +225,33 @@ impl GoogleCalendarActor {
         }).collect();
         
         Ok(calendar_events)
+    }
+
+    /// Check for new events since last check
+    async fn check_new_events(&self) -> BotResult<Vec<CalendarEvent>> {
+        // Get current events from Google Calendar
+        let current_events = Self::get_upcoming_events(
+            Arc::clone(&self.config),
+            self.token_manager.clone(),
+            self.client.clone(),
+        ).await?;
+
+        // Get last known events from Redis
+        let last_known_events = self.redis_handle.get_events().await?;
+        let mut new_events = Vec::new();
+
+        // Find new events by comparing with last known events
+        for event in &current_events {
+            if !last_known_events.iter().any(|e| e.id == event.id) {
+                new_events.push(event.clone());
+            }
+        }
+
+        // Update last known events in Redis
+        if !current_events.is_empty() {
+            let _ = self.redis_handle.save_events(current_events).await;
+        }
+
+        Ok(new_events)
     }
 } 

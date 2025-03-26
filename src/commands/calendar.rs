@@ -15,8 +15,37 @@ pub async fn this_week(
     // Get the config from ctx.data()
     let config = ctx.data().config.clone();
     
-    // Create a Google Calendar handle
-    let handle = GoogleCalendarHandle::new(config.clone());
+    // Get Google Calendar handle
+    let handle = if let Some(cm) = &ctx.data().component_manager {
+        // Try to get the actual GoogleCalendar component from ComponentManager
+        if let Some(component) = cm.get_component_by_name("google_calendar") {
+            // Try to downcast to get the actual Google Calendar component
+            if let Some(calendar_component) = component.as_any().downcast_ref::<crate::components::google_calendar::GoogleCalendar>() {
+                tracing::debug!("Using Google Calendar component from ComponentManager");
+                // Get the handle from the component
+                if let Some(handle) = calendar_component.get_handle().await {
+                    handle
+                } else {
+                    // Create a new handle if we couldn't get one
+                    tracing::debug!("No handle in Google Calendar component, creating new one");
+                    let redis_handle = crate::components::redis_service::RedisActorHandle::empty();
+                    GoogleCalendarHandle::new(config.clone(), redis_handle)
+                }
+            } else {
+                tracing::debug!("Could not downcast Google Calendar component");
+                let redis_handle = crate::components::redis_service::RedisActorHandle::empty();
+                GoogleCalendarHandle::new(config.clone(), redis_handle)
+            }
+        } else {
+            tracing::debug!("Google Calendar component not found in ComponentManager");
+            let redis_handle = crate::components::redis_service::RedisActorHandle::empty();
+            GoogleCalendarHandle::new(config.clone(), redis_handle)
+        }
+    } else {
+        tracing::debug!("ComponentManager not available, creating standalone handle");
+        let redis_handle = crate::components::redis_service::RedisActorHandle::empty();
+        GoogleCalendarHandle::new(config.clone(), redis_handle)
+    };
     
     // Get timezone from user input or default
     let timezone_str = match &timezone {
@@ -33,7 +62,10 @@ pub async fn this_week(
         Err(_) => {
             // Simply send a new message instead of editing
             let error_msg = format!("❌ Error: Invalid timezone '{}'", timezone_str);
-            ctx.say(error_msg).await?;
+            ctx.send(poise::CreateReply::default()
+                .content(error_msg)
+                .ephemeral(true)
+            ).await?;
             return Err(google_calendar_error(&format!("Invalid timezone: {}", timezone_str)));
         }
     };
@@ -44,7 +76,10 @@ pub async fn this_week(
         Err(e) => {
             // Simply send a new message instead of editing
             let error_msg = format!("❌ Error fetching events: {}", e);
-            ctx.say(error_msg).await?;
+            ctx.send(poise::CreateReply::default()
+                .content(error_msg)
+                .ephemeral(true)
+            ).await?;
             return Err(e);
         }
     };
