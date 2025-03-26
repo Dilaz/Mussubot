@@ -13,12 +13,12 @@ use tracing::info;
 async fn main() -> miette::Result<()> {
     // Initialize logging
     startup::init_logging()?;
-    
+
     info!("Starting Mussubot");
-    
+
     // Load configuration
     let config = startup::load_config().await?;
-    
+
     // Start the bot
     startup::start_bot(config).await
 }

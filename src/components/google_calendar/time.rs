@@ -1,6 +1,6 @@
-use crate::error::{BotResult, google_calendar_error};
-use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveDate, TimeZone, Datelike};
 use super::models::CalendarEvent;
+use crate::error::{google_calendar_error, BotResult};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, TimeZone};
 
 /// Parse time string in HH:MM format
 pub fn parse_time(time_str: &str) -> Option<(u32, u32)> {
@@ -17,9 +17,13 @@ pub fn parse_time(time_str: &str) -> Option<(u32, u32)> {
 }
 
 /// Calculate next notification time
-pub fn next_notification_time(current_time: DateTime<Local>, target_time: &str, is_weekly: bool) -> BotResult<DateTime<Local>> {
-    let (target_hour, target_minute) = parse_time(target_time)
-        .ok_or_else(|| google_calendar_error("Invalid time format"))?;
+pub fn next_notification_time(
+    current_time: DateTime<Local>,
+    target_time: &str,
+    is_weekly: bool,
+) -> BotResult<DateTime<Local>> {
+    let (target_hour, target_minute) =
+        parse_time(target_time).ok_or_else(|| google_calendar_error("Invalid time format"))?;
 
     let next = current_time
         .date_naive()
@@ -68,7 +72,8 @@ pub fn get_event_start(event: &CalendarEvent) -> BotResult<Option<DateTime<Local
     } else if let Some(start_date) = &event.start_date {
         let date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")
             .map_err(|e| google_calendar_error(&format!("Failed to parse date: {}", e)))?;
-        let dt = date.and_hms_opt(0, 0, 0)
+        let dt = date
+            .and_hms_opt(0, 0, 0)
             .ok_or_else(|| google_calendar_error("Failed to create datetime"))?;
         let local_dt = match Local.from_local_datetime(&dt) {
             chrono::LocalResult::Single(dt) => dt,
@@ -83,4 +88,4 @@ pub fn get_event_start(event: &CalendarEvent) -> BotResult<Option<DateTime<Local
     } else {
         Ok(None)
     }
-} 
+}

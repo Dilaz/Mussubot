@@ -1,3 +1,3 @@
 mod actor;
 
-pub use actor::{RedisActor, RedisActorHandle}; 
+pub use actor::{RedisActor, RedisActorHandle};

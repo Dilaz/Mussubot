@@ -18,7 +18,7 @@ pub async fn dummy(
     } else {
         "Dummy command executed!".to_string()
     };
-    
+
     ctx.say(response).await?;
     Ok(())
-} 
+}

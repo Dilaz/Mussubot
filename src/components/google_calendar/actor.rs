@@ -1,15 +1,15 @@
-use crate::config::Config;
-use crate::error::{BotResult, google_calendar_error};
 use super::models::CalendarEvent;
 use super::token::TokenManager;
 use crate::components::redis_service::RedisActorHandle;
+use crate::config::Config;
+use crate::error::{google_calendar_error, BotResult};
 use chrono::Utc;
+use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::info;
 use url::Url;
-use reqwest::Client;
 
 /// The Google Calendar actor that processes messages
 pub struct GoogleCalendarActor {
@@ -37,23 +37,31 @@ impl GoogleCalendarActorHandle {
     /// Get upcoming events from the calendar
     pub async fn get_upcoming_events(&self) -> BotResult<Vec<CalendarEvent>> {
         let (response_tx, mut response_rx) = mpsc::channel(1);
-        self.command_tx.send(GoogleCalendarCommand::GetUpcomingEvents(response_tx)).await
+        self.command_tx
+            .send(GoogleCalendarCommand::GetUpcomingEvents(response_tx))
+            .await
             .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
-        
-        response_rx.recv().await
+
+        response_rx
+            .recv()
+            .await
             .ok_or_else(|| google_calendar_error("Response channel closed"))?
     }
 
     /// Check for new events since last check
     pub async fn check_new_events(&self) -> BotResult<Vec<CalendarEvent>> {
         let (response_tx, mut response_rx) = mpsc::channel(1);
-        self.command_tx.send(GoogleCalendarCommand::CheckNewEvents(response_tx)).await
+        self.command_tx
+            .send(GoogleCalendarCommand::CheckNewEvents(response_tx))
+            .await
             .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
-        
-        response_rx.recv().await
+
+        response_rx
+            .recv()
+            .await
             .ok_or_else(|| google_calendar_error("Response channel closed"))?
     }
-    
+
     /// Shutdown the actor
     pub async fn shutdown(&self) -> BotResult<()> {
         let _ = self.command_tx.send(GoogleCalendarCommand::Shutdown).await;
@@ -63,9 +71,12 @@ impl GoogleCalendarActorHandle {
 
 impl GoogleCalendarActor {
     /// Create a new actor and return its handle
-    pub fn new(config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> (Self, GoogleCalendarActorHandle) {
+    pub fn new(
+        config: Arc<RwLock<Config>>,
+        redis_handle: RedisActorHandle,
+    ) -> (Self, GoogleCalendarActorHandle) {
         let (command_tx, command_rx) = mpsc::channel(32);
-        
+
         let actor = Self {
             config: Arc::clone(&config),
             token_manager: TokenManager::new(Arc::clone(&config), redis_handle.clone()),
@@ -73,16 +84,16 @@ impl GoogleCalendarActor {
             command_rx,
             redis_handle,
         };
-        
+
         let handle = GoogleCalendarActorHandle { command_tx };
-        
+
         (actor, handle)
     }
-    
+
     /// Start the actor's processing loop
     pub async fn run(&mut self) {
         info!("Google Calendar actor started");
-        
+
         // Process commands
         while let Some(cmd) = self.command_rx.recv().await {
             match cmd {
@@ -91,26 +102,27 @@ impl GoogleCalendarActor {
                         Arc::clone(&self.config),
                         self.token_manager.clone(),
                         self.client.clone(),
-                    ).await;
-                    
+                    )
+                    .await;
+
                     // Save events to Redis if successful
                     if let Ok(events) = &result {
                         let _ = self.redis_handle.save_events(events.clone()).await;
                     }
-                    
+
                     let _ = response_tx.send(result).await;
-                },
+                }
                 GoogleCalendarCommand::CheckNewEvents(response_tx) => {
                     let result = self.check_new_events().await;
                     let _ = response_tx.send(result).await;
-                },
+                }
                 GoogleCalendarCommand::Shutdown => {
                     info!("Google Calendar actor shutting down");
                     break;
                 }
             }
         }
-        
+
         info!("Google Calendar actor shut down");
     }
 
@@ -125,105 +137,131 @@ impl GoogleCalendarActor {
             let config_read = config.read().await;
             config_read.google_calendar_id.clone()
         };
-        
+
         // Get authentication token
         let token = token_manager.get_token().await?;
-        let access_token = token.get("access_token")
+        let access_token = token
+            .get("access_token")
             .and_then(|t| t.as_str())
             .ok_or_else(|| google_calendar_error("No access token available"))?;
-        
+
         // Calculate time range (from now to 4 weeks in the future)
         let now = Utc::now();
         let time_min = now.to_rfc3339();
         let time_max = (now + chrono::Duration::days(28)).to_rfc3339();
-        
+
         // Build URL with query parameters
         let url_str = format!(
             "https://www.googleapis.com/calendar/v3/calendars/{}/events",
             calendar_id
         );
-        
+
         let mut url = Url::parse(&url_str)
             .map_err(|e| google_calendar_error(&format!("Failed to parse URL: {}", e)))?;
-        
+
         let mut query_params = HashMap::new();
         query_params.insert("timeMin", time_min);
         query_params.insert("timeMax", time_max);
         query_params.insert("singleEvents", "true".to_string());
         query_params.insert("orderBy", "startTime".to_string());
-        
+
         for (key, value) in query_params {
             url.query_pairs_mut().append_pair(key, &value);
         }
-        
+
         // Make API request
-        let response = client.get(url)
+        let response = client
+            .get(url)
             .header("Authorization", format!("Bearer {}", access_token))
             .send()
             .await
             .map_err(|e| google_calendar_error(&format!("Failed to fetch events: {}", e)))?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
-            let error_body = response.text().await.unwrap_or_else(|_| "Could not read error response".to_string());
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Could not read error response".to_string());
             return Err(google_calendar_error(&format!(
                 "Failed to fetch events: HTTP {} - {}",
-                status,
-                error_body
+                status, error_body
             )));
         }
-        
-        let response_data: serde_json::Value = response.json().await
-            .map_err(|e| google_calendar_error(&format!("Failed to parse events response: {}", e)))?;
-        
+
+        let response_data: serde_json::Value = response.json().await.map_err(|e| {
+            google_calendar_error(&format!("Failed to parse events response: {}", e))
+        })?;
+
         // Parse events from response
-        let events = response_data.get("items")
+        let events = response_data
+            .get("items")
             .and_then(|i| i.as_array())
             .ok_or_else(|| google_calendar_error("No items in response"))?;
-        
+
         // Convert to CalendarEvent objects
-        let calendar_events = events.iter().map(|event| {
-            let id = event.get("id").and_then(|id| id.as_str()).unwrap_or("").to_string();
-            let summary = event.get("summary").and_then(|s| s.as_str()).map(|s| s.to_string());
-            let description = event.get("description").and_then(|s| s.as_str()).map(|s| s.to_string());
-            let created = event.get("created").and_then(|s| s.as_str()).map(|s| s.to_string());
-            
-            let start_date_time = event.get("start")
-                .and_then(|start| start.as_object())
-                .and_then(|start| start.get("dateTime"))
-                .and_then(|dt| dt.as_str())
-                .map(|s| s.to_string());
-            
-            let start_date = event.get("start")
-                .and_then(|start| start.as_object())
-                .and_then(|start| start.get("date"))
-                .and_then(|d| d.as_str())
-                .map(|s| s.to_string());
-            
-            let end_date_time = event.get("end")
-                .and_then(|end| end.as_object())
-                .and_then(|end| end.get("dateTime"))
-                .and_then(|dt| dt.as_str())
-                .map(|s| s.to_string());
-            
-            let end_date = event.get("end")
-                .and_then(|end| end.as_object())
-                .and_then(|end| end.get("date"))
-                .and_then(|d| d.as_str())
-                .map(|s| s.to_string());
-            
-            CalendarEvent {
-                id,
-                summary,
-                description,
-                created,
-                start_date_time,
-                start_date,
-                end_date_time,
-                end_date,
-            }
-        }).collect();
-        
+        let calendar_events = events
+            .iter()
+            .map(|event| {
+                let id = event
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let summary = event
+                    .get("summary")
+                    .and_then(|s| s.as_str())
+                    .map(|s| s.to_string());
+                let description = event
+                    .get("description")
+                    .and_then(|s| s.as_str())
+                    .map(|s| s.to_string());
+                let created = event
+                    .get("created")
+                    .and_then(|s| s.as_str())
+                    .map(|s| s.to_string());
+
+                let start_date_time = event
+                    .get("start")
+                    .and_then(|start| start.as_object())
+                    .and_then(|start| start.get("dateTime"))
+                    .and_then(|dt| dt.as_str())
+                    .map(|s| s.to_string());
+
+                let start_date = event
+                    .get("start")
+                    .and_then(|start| start.as_object())
+                    .and_then(|start| start.get("date"))
+                    .and_then(|d| d.as_str())
+                    .map(|s| s.to_string());
+
+                let end_date_time = event
+                    .get("end")
+                    .and_then(|end| end.as_object())
+                    .and_then(|end| end.get("dateTime"))
+                    .and_then(|dt| dt.as_str())
+                    .map(|s| s.to_string());
+
+                let end_date = event
+                    .get("end")
+                    .and_then(|end| end.as_object())
+                    .and_then(|end| end.get("date"))
+                    .and_then(|d| d.as_str())
+                    .map(|s| s.to_string());
+
+                CalendarEvent {
+                    id,
+                    summary,
+                    description,
+                    created,
+                    start_date_time,
+                    start_date,
+                    end_date_time,
+                    end_date,
+                }
+            })
+            .collect();
+
         Ok(calendar_events)
     }
 
@@ -234,7 +272,8 @@ impl GoogleCalendarActor {
             Arc::clone(&self.config),
             self.token_manager.clone(),
             self.client.clone(),
-        ).await?;
+        )
+        .await?;
 
         // Get last known events from Redis
         let last_known_events = self.redis_handle.get_events().await?;
@@ -254,4 +293,4 @@ impl GoogleCalendarActor {
 
         Ok(new_events)
     }
-} 
+}

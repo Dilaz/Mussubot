@@ -1,12 +1,12 @@
-use crate::error::BotResult;
-use crate::config::Config;
 use crate::components::ComponentManager;
+use crate::config::Config;
+use crate::error::BotResult;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 // Export submodules
-pub mod util;
 pub mod calendar;
+pub mod util;
 
 /// Shared context for all commands
 #[derive(Debug)]
@@ -24,7 +24,7 @@ impl CommandContext {
             component_manager: None,
         }
     }
-    
+
     /// Set the component manager
     pub fn with_component_manager(mut self, component_manager: Arc<ComponentManager>) -> Self {
         self.component_manager = Some(component_manager);

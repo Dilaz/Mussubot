@@ -6,7 +6,9 @@ use tokio::time::{sleep, Duration as TokioDuration};
 use tracing::{error, info};
 
 use super::handle::GoogleCalendarHandle;
-use super::notifications::{send_daily_notification, send_weekly_notification, send_new_events_notification};
+use super::notifications::{
+    send_daily_notification, send_new_events_notification, send_weekly_notification,
+};
 use super::time::next_notification_time;
 use crate::config::Config;
 
@@ -45,22 +47,25 @@ pub async fn start_scheduler(
                     continue;
                 }
             };
-            
+
             let next = next_daily.min(next_weekly);
             let wait_duration = next - now;
-            
+
             info!("Next notification scheduled for {}", next);
             sleep(TokioDuration::from_secs(wait_duration.num_seconds() as u64)).await;
 
             let now = Local::now();
             if now >= next_daily {
-                if let Err(e) = send_daily_notification(&ctx_clone, channel_id, &handle_clone).await {
+                if let Err(e) = send_daily_notification(&ctx_clone, channel_id, &handle_clone).await
+                {
                     error!("Failed to send daily notification: {}", e);
                 }
             }
-            
+
             if now >= next_weekly {
-                if let Err(e) = send_weekly_notification(&ctx_clone, channel_id, &handle_clone).await {
+                if let Err(e) =
+                    send_weekly_notification(&ctx_clone, channel_id, &handle_clone).await
+                {
                     error!("Failed to send weekly notification: {}", e);
                 }
             }
@@ -77,7 +82,9 @@ pub async fn start_scheduler(
 
             match handle_clone.check_new_events().await {
                 Ok(new_events) => {
-                    if let Err(e) = send_new_events_notification(&ctx_clone, channel_id, &new_events).await {
+                    if let Err(e) =
+                        send_new_events_notification(&ctx_clone, channel_id, &new_events).await
+                    {
                         error!("Failed to send new events notification: {}", e);
                     }
                 }
@@ -87,4 +94,4 @@ pub async fn start_scheduler(
             }
         }
     });
-} 
+}

@@ -7,35 +7,35 @@ pub enum Error {
     #[error("Discord API error: {0}")]
     #[diagnostic(code(mussubot::discord_api))]
     DiscordApi(#[from] serenity::Error),
-    
+
     #[error("Poise framework error: {0}")]
     #[diagnostic(code(mussubot::poise))]
     Poise(#[from] Box<dyn std::error::Error + Send + Sync>),
-    
+
     #[error("Environment error: {0}")]
     #[diagnostic(code(mussubot::environment))]
     Environment(String),
-    
+
     #[error("Configuration error: {0}")]
     #[diagnostic(code(mussubot::config))]
     Config(String),
-    
+
     #[error("Google Calendar API error: {0}")]
     #[diagnostic(code(mussubot::google_calendar))]
     GoogleCalendar(String),
-    
+
     #[error("Component error: {0}")]
     #[diagnostic(code(mussubot::component))]
     Component(String),
-    
+
     #[error(transparent)]
     #[diagnostic(code(mussubot::io))]
     Io(#[from] std::io::Error),
-    
+
     #[error("Serialization error: {0}")]
     #[diagnostic(code(mussubot::serialization))]
     Serialization(String),
-    
+
     #[error("Other error: {0}")]
     #[diagnostic(code(mussubot::other))]
     Other(String),
@@ -98,4 +98,4 @@ pub fn google_calendar_error(message: &str) -> Error {
 #[allow(dead_code)]
 pub fn other_error(message: &str) -> Error {
     Error::Other(message.to_string())
-} 
+}

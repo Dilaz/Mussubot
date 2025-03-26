@@ -1,10 +1,10 @@
 mod actor;
 mod handle;
 pub mod models;
-pub mod token;
-mod time;
 mod notifications;
 mod scheduler;
+mod time;
+pub mod token;
 
 pub use handle::GoogleCalendarHandle;
 pub use models::CalendarEvent;
@@ -34,7 +34,7 @@ impl GoogleCalendar {
             ctx: RwLock::new(None),
         }
     }
-    
+
     /// Get the handle if it exists
     pub async fn get_handle(&self) -> Option<GoogleCalendarHandle> {
         let handle_lock = self.handle.read().await;
@@ -47,11 +47,16 @@ impl super::Component for GoogleCalendar {
     fn name(&self) -> &'static str {
         "google_calendar"
     }
-    
-    async fn init(&self, ctx: &serenity::Context, config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> BotResult<()> {
+
+    async fn init(
+        &self,
+        ctx: &serenity::Context,
+        config: Arc<RwLock<Config>>,
+        redis_handle: RedisActorHandle,
+    ) -> BotResult<()> {
         // Store context for scheduler
         *self.ctx.write().await = Some(Arc::new(ctx.clone()));
-        
+
         // Create a new handle if one doesn't exist
         let mut handle_lock = self.handle.write().await;
         if handle_lock.is_none() {
@@ -65,10 +70,10 @@ impl super::Component for GoogleCalendar {
 
         // Start the notification scheduler
         start_scheduler(ctx, config, handle).await;
-        
+
         Ok(())
     }
-    
+
     async fn shutdown(&self) -> BotResult<()> {
         // Shutdown the handle if it exists
         let handle_lock = self.handle.read().await;
@@ -77,7 +82,7 @@ impl super::Component for GoogleCalendar {
         }
         Ok(())
     }
-    
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

@@ -9,4 +9,4 @@ pub struct CalendarEvent {
     pub start_date: Option<String>,
     pub end_date_time: Option<String>,
     pub end_date: Option<String>,
-} 
+}

@@ -1,25 +1,25 @@
-use mussubotti::config::Config;
 use mussubotti::components::google_calendar::token::TokenManager;
 use mussubotti::components::redis_service::RedisActor;
-use mussubotti::error::{BotResult, other_error};
+use mussubotti::config::Config;
+use mussubotti::error::{other_error, BotResult};
+use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde_json::json;
 
 #[tokio::main]
 async fn main() -> BotResult<()> {
     // Load configuration
     let config = Config::load()?;
     let config = Arc::new(RwLock::new(config));
-    
+
     // Create Redis actor
     let (mut redis_actor, redis_handle) = RedisActor::new(config.clone());
-    
+
     // Spawn Redis actor task
     let _redis_task = tokio::spawn(async move {
         redis_actor.run().await;
     });
-    
+
     // Create token manager with Redis handle
     let token_manager = TokenManager::new(config.clone(), redis_handle);
 
@@ -54,17 +54,20 @@ async fn main() -> BotResult<()> {
     // Handle the callback
     let request = server.recv()?;
     let url = request.url().to_string();
-    
+
     // Parse the authorization code from the URL
-    let code = url.split("code=").nth(1)
+    let code = url
+        .split("code=")
+        .nth(1)
         .and_then(|s| s.split('&').next())
         .ok_or_else(|| other_error("No authorization code found in callback"))?;
 
     // Exchange code for tokens
     let token_url = "https://oauth2.googleapis.com/token";
     let client = reqwest::Client::new();
-    
-    let response = client.post(token_url)
+
+    let response = client
+        .post(token_url)
         .form(&[
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -83,11 +86,12 @@ async fn main() -> BotResult<()> {
     let mut token_data: serde_json::Value = response.json().await?;
 
     // Add expiry timestamp
-    let expires_in = token_data.get("expires_in")
+    let expires_in = token_data
+        .get("expires_in")
         .and_then(|v| v.as_i64())
         .unwrap_or(3600);
     let expires_at = chrono::Utc::now().timestamp() + expires_in;
-    
+
     let token_data = if let Some(obj) = token_data.as_object_mut() {
         obj.insert("expires_at".to_string(), json!(expires_at));
         token_data
@@ -99,12 +103,11 @@ async fn main() -> BotResult<()> {
     token_manager.set_token(token_data).await?;
 
     // Send success response to browser
-    let response = tiny_http::Response::from_string(
-        "Authorization successful! You can close this window."
-    );
+    let response =
+        tiny_http::Response::from_string("Authorization successful! You can close this window.");
     request.respond(response)?;
 
     println!("Token successfully saved to Redis!");
-    
+
     Ok(())
 }

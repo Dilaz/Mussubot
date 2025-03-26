@@ -1,8 +1,8 @@
-use crate::components::redis_service::RedisActorHandle;
-use crate::error::BotResult;
-use crate::config::Config;
-use super::models::CalendarEvent;
 use super::actor::GoogleCalendarActorHandle;
+use super::models::CalendarEvent;
+use crate::components::redis_service::RedisActorHandle;
+use crate::config::Config;
+use crate::error::BotResult;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
@@ -18,15 +18,15 @@ impl GoogleCalendarHandle {
     /// Create a new GoogleCalendarHandle and spawn the actor
     pub fn new(config: Arc<RwLock<Config>>, redis_handle: RedisActorHandle) -> Self {
         use super::actor::GoogleCalendarActor;
-        
+
         // Create the actor and get its handle
         let (mut actor, handle) = GoogleCalendarActor::new(config, redis_handle);
-        
+
         // Spawn a task to run the actor
         let actor_task = tokio::spawn(async move {
             actor.run().await;
         });
-        
+
         Self {
             actor_handle: handle,
             _actor_task: Arc::new(actor_task),
@@ -47,4 +47,4 @@ impl GoogleCalendarHandle {
     pub async fn shutdown(&self) -> BotResult<()> {
         self.actor_handle.shutdown().await
     }
-} 
+}

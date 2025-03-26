@@ -1,9 +1,9 @@
+use super::handle::GoogleCalendarHandle;
+use super::models::CalendarEvent;
+use super::time::get_event_start;
 use crate::error::BotResult;
 use chrono::{Duration, Local};
 use poise::serenity_prelude as serenity;
-use super::handle::GoogleCalendarHandle;
-use super::time::get_event_start;
-use super::models::CalendarEvent;
 
 /// Send daily notification of calendar events
 pub async fn send_daily_notification(
@@ -13,7 +13,7 @@ pub async fn send_daily_notification(
 ) -> BotResult<()> {
     let events = handle.get_upcoming_events().await?;
     let today = Local::now().date_naive();
-    
+
     let mut today_events = Vec::new();
     for event in events {
         if let Ok(Some(start)) = get_event_start(&event) {
@@ -32,7 +32,9 @@ pub async fn send_daily_notification(
         }
 
         let channel_id = serenity::ChannelId::new(channel_id);
-        channel_id.send_message(&ctx.http, serenity::CreateMessage::new().content(&message)).await?;
+        channel_id
+            .send_message(&ctx.http, serenity::CreateMessage::new().content(&message))
+            .await?;
     }
 
     Ok(())
@@ -47,7 +49,7 @@ pub async fn send_weekly_notification(
     let events = handle.get_upcoming_events().await?;
     let today = Local::now().date_naive();
     let week_end = today + Duration::days(7);
-    
+
     let mut week_events = Vec::new();
     for event in events {
         if let Ok(Some(start)) = get_event_start(&event) {
@@ -61,7 +63,7 @@ pub async fn send_weekly_notification(
     if !week_events.is_empty() {
         let mut message = "📅 **Tämä viikko:**\n".to_string();
         let mut current_date = today;
-        
+
         while current_date < week_end {
             let day_events: Vec<_> = week_events
                 .iter()
@@ -81,7 +83,9 @@ pub async fn send_weekly_notification(
         }
 
         let channel_id = serenity::ChannelId::new(channel_id);
-        channel_id.send_message(&ctx.http, serenity::CreateMessage::new().content(&message)).await?;
+        channel_id
+            .send_message(&ctx.http, serenity::CreateMessage::new().content(&message))
+            .await?;
     }
 
     Ok(())
@@ -106,8 +110,10 @@ pub async fn send_new_events_notification(
         }
 
         let channel_id = serenity::ChannelId::new(channel_id);
-        channel_id.send_message(&ctx.http, serenity::CreateMessage::new().content(&message)).await?;
+        channel_id
+            .send_message(&ctx.http, serenity::CreateMessage::new().content(&message))
+            .await?;
     }
 
     Ok(())
-} 
+}
