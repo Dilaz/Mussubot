@@ -3,12 +3,13 @@ FROM rust:latest AS builder
 
 WORKDIR /app
 
-# Create a dummy project with the same dependencies
+# Copy only the dependency files first
 COPY Cargo.toml Cargo.lock ./
 
-# Create dummy source to build dependencies
-RUN mkdir -p src && \
+# Create dummy source and bin directory structure
+RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/main.rs && \
+    echo "fn main() {}" > src/bin/get_calendar_token.rs && \
     cargo build --release && \
     rm -rf src
 
@@ -16,7 +17,7 @@ RUN mkdir -p src && \
 COPY src/ ./src/
 
 # Build the actual application
-RUN cargo build --release --bin mussubot
+RUN cargo build --release --bin mussubotti
 
 # Runtime stage
 FROM gcr.io/distroless/cc-debian12
@@ -24,7 +25,7 @@ FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 
 # Copy the compiled binary from builder
-COPY --from=builder /app/target/release/mussubot /app/mussubot
+COPY --from=builder /app/target/release/mussubotti /app/mussubotti
 
 # Set the entrypoint
-ENTRYPOINT ["/app/mussubot"]
+ENTRYPOINT ["/app/mussubotti"]
