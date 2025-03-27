@@ -9,7 +9,12 @@ RUN apt-get update && \
     cmake \
     build-essential \
     pkg-config \
+    libclang-dev \
+    clang \
     && rm -rf /var/lib/apt/lists/*
+
+# Set LIBCLANG_PATH for bindgen
+ENV LIBCLANG_PATH=/usr/lib/llvm-*/lib
 
 # Copy only the dependency files first
 COPY Cargo.toml Cargo.lock ./
