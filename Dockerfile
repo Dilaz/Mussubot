@@ -13,8 +13,10 @@ RUN apt-get update && \
     clang \
     && rm -rf /var/lib/apt/lists/*
 
-# Set LIBCLANG_PATH for bindgen
-ENV LIBCLANG_PATH=/usr/lib/llvm-*/lib
+# Find and set LIBCLANG_PATH
+RUN find /usr -name "libclang.so*" -exec dirname {} \; | head -n 1 > /tmp/libclang_path && \
+    export LIBCLANG_PATH=$(cat /tmp/libclang_path) && \
+    echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> /etc/environment
 
 # Copy only the dependency files first
 COPY Cargo.toml Cargo.lock ./
@@ -23,6 +25,7 @@ COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/main.rs && \
     echo "fn main() {}" > src/bin/get_calendar_token.rs && \
+    . /etc/environment && \
     cargo build --release && \
     rm -rf src
 
@@ -30,7 +33,8 @@ RUN mkdir -p src/bin && \
 COPY src/ ./src/
 
 # Build the actual application
-RUN cargo build --release --bin mussubotti
+RUN . /etc/environment && \
+    cargo build --release --bin mussubotti
 
 # Runtime stage
 FROM gcr.io/distroless/cc-debian12
