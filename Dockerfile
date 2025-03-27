@@ -3,6 +3,14 @@ FROM rust:latest AS builder
 
 WORKDIR /app
 
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    cmake \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only the dependency files first
 COPY Cargo.toml Cargo.lock ./
 
