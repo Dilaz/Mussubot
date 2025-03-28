@@ -109,14 +109,14 @@ jobs:
         id: sha
         run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
       
-      - name: Apply Docker Slim for amd64
-        uses: kitabisa/docker-slim-action@v1
-        id: slim
-        env:
-          DSLIM_HTTP_PROBE: false
-        with:
-          target: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.sha.outputs.short }}
-          tag: "sha-${{ steps.sha.outputs.short }}-slim,latest-slim"
+      # - name: Apply Docker Slim for amd64
+      #   uses: kitabisa/docker-slim-action@v1
+      #   id: slim
+      #   env:
+      #     DSLIM_HTTP_PROBE: false
+      #   with:
+      #     target: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.sha.outputs.short }}
+      #     tag: "sha-${{ steps.sha.outputs.short }}-slim,latest-slim"
 
   deploy:
     needs: build-and-push-image
