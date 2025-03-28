@@ -158,20 +158,6 @@ jobs:
             --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
             --from-literal=GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }}
           
-          # Install or upgrade Redis with Helm
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-          helm upgrade --install redis bitnami/redis \
-            -n mussubot \
-            --set auth.enabled=false \
-            --set architecture=standalone \
-            --set master.persistence.size=1Gi \
-            --set master.service.ports.redis=6379 \
-            --set master.resources.limits.memory=128Mi \
-            --set master.resources.limits.cpu=250m \
-            --set master.resources.requests.memory=64Mi \
-            --set master.resources.requests.cpu=100m
-          
           # Apply k8s manifests
           cat k8s/deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
           kubectl apply -f k8s/configmap.yaml
