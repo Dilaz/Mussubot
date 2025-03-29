@@ -36,6 +36,8 @@ pub struct Config {
     pub daily_notification_time: String,
     /// Weekly notification time in 24h format (HH:MM)
     pub weekly_notification_time: String,
+    /// Bot locale
+    pub bot_locale: String,
 }
 
 impl Config {
@@ -80,6 +82,9 @@ impl Config {
         let redis_url =
             env::var("REDIS_URL").unwrap_or_else(|_| String::from("redis://127.0.0.1:6379"));
 
+        // Bot locale
+        let bot_locale = env::var("BOT_LOCALE").unwrap_or_else(|_| "en-US".to_string());
+
         // Initialize default components
         let mut components = HashMap::new();
         components.insert("google_calendar".to_string(), true);
@@ -107,6 +112,7 @@ impl Config {
             redis_url,
             daily_notification_time,
             weekly_notification_time,
+            bot_locale,
         })
     }
 

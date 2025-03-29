@@ -3,10 +3,8 @@ mod handle;
 pub mod models;
 mod notifications;
 mod scheduler;
-mod time;
-pub mod token;
 
-pub use handle::GoogleCalendarHandle;
+pub use handle::WorkScheduleHandle;
 
 use crate::config::Config;
 use crate::error::BotResult;
@@ -15,18 +13,18 @@ use poise::serenity_prelude as serenity;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::google_calendar::scheduler::start_scheduler;
 use super::redis_service::RedisActorHandle;
+use super::work_schedule::scheduler::start_scheduler;
 
-/// Google Calendar component for integration with Discord
+/// Work Schedule component for tracking employee work hours
 #[derive(Default)]
-pub struct GoogleCalendar {
-    handle: RwLock<Option<GoogleCalendarHandle>>,
+pub struct WorkSchedule {
+    handle: RwLock<Option<WorkScheduleHandle>>,
     ctx: RwLock<Option<Arc<serenity::Context>>>,
 }
 
-impl GoogleCalendar {
-    /// Create a new Google Calendar component
+impl WorkSchedule {
+    /// Create a new Work Schedule component
     pub fn new() -> Self {
         Self {
             handle: RwLock::new(None),
@@ -35,16 +33,16 @@ impl GoogleCalendar {
     }
 
     /// Get the handle if it exists
-    pub async fn get_handle(&self) -> Option<GoogleCalendarHandle> {
+    pub async fn get_handle(&self) -> Option<WorkScheduleHandle> {
         let handle_lock = self.handle.read().await;
         handle_lock.clone()
     }
 }
 
 #[async_trait]
-impl super::Component for GoogleCalendar {
+impl super::Component for WorkSchedule {
     fn name(&self) -> &'static str {
-        "google_calendar"
+        "work_schedule"
     }
 
     async fn init(
@@ -59,8 +57,8 @@ impl super::Component for GoogleCalendar {
         // Create a new handle if one doesn't exist
         let mut handle_lock = self.handle.write().await;
         if handle_lock.is_none() {
-            // Pass the redis_handle to the GoogleCalendarHandle
-            *handle_lock = Some(GoogleCalendarHandle::new(config.clone(), redis_handle));
+            // Pass the redis_handle to the WorkScheduleHandle
+            *handle_lock = Some(WorkScheduleHandle::new(config.clone(), redis_handle));
         }
 
         // Get the handle and context for the scheduler

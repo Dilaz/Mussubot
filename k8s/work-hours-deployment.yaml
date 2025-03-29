@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: work-hours
+  namespace: mussubot
+  labels:
+    app: work-hours
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: work-hours
+  template:
+    metadata:
+      labels:
+        app: work-hours
+    spec:
+      containers:
+      - name: work-hours
+        image: ${IMAGE_REPO}:${IMAGE_TAG}
+        command: ["/bin/sh", "-c"]
+        args: ["./work_hours"]
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          runAsUser: 10000
+          capabilities:
+            drop: [ALL]
+        ports:
+        - containerPort: 3000
+          name: http
+        envFrom:
+        - secretRef:
+            name: mussubotti-secrets
+        - configMapRef:
+            name: mussubotti-config
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10 

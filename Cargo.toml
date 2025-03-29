@@ -18,9 +18,6 @@ miette = { version = "7.5.0", features = ["fancy"] }
 # Logging
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-# Google Calendar API
-google-calendar3 = "6.0.0+20240523"
-yup-oauth2 = "12.1.0"
 # Scheduling
 chrono = "0.4.40"
 chrono-tz = "0.10.3"
@@ -29,7 +26,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 toml = "0.8.20"
 # Async traits
-async-trait = { version = "0.1.88"  }
+async-trait = "0.1.88"
 dotenvy = "0.15.7"
 reqwest = { version = "0.12.15", features = ["json"] }
 url = "2.5.4"
@@ -40,14 +37,55 @@ futures = "0.3.31"
 actix = "0.13.5"
 actix-rt = "2.10.0"
 # Redis
-redis = { version = "0.24.0", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "0.29.2", features = ["tokio-comp", "connection-manager"] }
 hyper = "1.6.0"
 hyper-rustls = "0.27.5"
-google-apis-common = "7.0.0"
 # Additional dependencies for calendar token binary
-uuid = { version = "1.7.0", features = ["v4"] }
+uuid = { version = "1.16.0", features = ["v4"] }
 tiny_http = "0.12.0"
+# AI-powered image processing
+rig-core = { version = "0.10.0", features = ["derive"], optional = true }
+# Web server for work_hours
+axum = { version = "0.8.3", features = ["multipart"], optional = true }
+axum-extra = { version = "0.10.1", features = ["cookie"], optional = true }
+tower = { version = "0.5.2", optional = true }
+tower-http = { version = "0.6.2", features = ["fs", "trace", "cors"], optional = true }
+askama = { version = "0.13.0", optional = true }
+multer = { version = "3.1.0", optional = true }
+jsonwebtoken = { version = "9.3.1", optional = true }
+rand = { version = "0.9.0", optional = true }
+time = { version = "0.3.41", optional = true }
+urlencoding = { version = "2.1.3", optional = true }
+http-body-util = { version = "0.1.3", optional = true }
+bytes = { version = "1.10.1", optional = true }
+base64 = "0.22.1"
+schemars = "0.8.22"
+rust-i18n = "3.1.3"
 
 [[bin]]
 name = "get_calendar_token"
 path = "src/bin/get_calendar_token.rs"
+
+[[bin]]
+name = "work_hours"
+path = "src/bin/work_hours/main.rs"
+
+[features]
+default = ["discord-bot", "web-interface"]
+discord-bot = []
+web-interface = [
+    "dep:axum", 
+    "dep:axum-extra", 
+    "dep:tower", 
+    "dep:tower-http", 
+    "dep:askama", 
+    "dep:multer", 
+    "dep:jsonwebtoken", 
+    "dep:rand",
+    "dep:time",
+    "dep:urlencoding",
+    "dep:http-body-util",
+    "dep:bytes",
+    "dep:rig-core",
+    "tokio/full",
+]

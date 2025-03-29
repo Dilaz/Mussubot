@@ -1,10 +1,11 @@
-use crate::commands::{self, CommandContext};
-use crate::components::{google_calendar::GoogleCalendar, ComponentManager};
+use crate::commands::{get_all_application_commands, CommandContext, create_error_embed};
+use crate::components::{google_calendar::GoogleCalendar, work_schedule::WorkSchedule, ComponentManager};
 use crate::config::Config;
 use crate::error::Error;
 use crate::shutdown;
 use poise::serenity_prelude as serenity;
 use serenity::model::user::OnlineStatus;
+use rust_i18n::t;
 use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 use tracing::{error, info};
@@ -49,9 +50,16 @@ pub async fn start_bot(config: Arc<RwLock<Config>>) -> miette::Result<()> {
         config_read.activity.clone()
     };
 
+    // Set locale from config
+    {
+        let config_read = config.read().await;
+        crate::utils::i18n::set_locale(&config_read.bot_locale);
+        info!("Setting locale to {}", config_read.bot_locale);
+    }
+
     // Set up framework options
     let options = poise::FrameworkOptions {
-        commands: commands::get_all_application_commands(),
+        commands: get_all_application_commands(),
         on_error: |error| Box::pin(on_error(error)),
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("!".to_string()),
@@ -77,6 +85,9 @@ pub async fn start_bot(config: Arc<RwLock<Config>>) -> miette::Result<()> {
 
     // Register Google Calendar component
     component_manager.register(GoogleCalendar::new());
+    
+    // Register Work Schedule component
+    component_manager.register(WorkSchedule::new());
 
     // Create a shared component manager
     let component_manager = Arc::new(component_manager);
@@ -182,8 +193,11 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
             if let Err(e) = ctx
                 .send(
                     poise::CreateReply::default()
-                        .content(format!("❌ Error: {}", error))
-                        .ephemeral(true),
+                        .embed(create_error_embed(
+                            &t!("error_title", context = "command"),
+                            &format!("{}", error)
+                        ))
+                        .ephemeral(true)
                 )
                 .await
             {
@@ -196,8 +210,11 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
                 if let Err(e) = ctx
                     .send(
                         poise::CreateReply::default()
-                            .content(format!("❌ Check failed: {}", error))
-                            .ephemeral(true),
+                            .embed(create_error_embed(
+                                &t!("error_title", context = "check"),
+                                &format!("{}", error)
+                            ))
+                            .ephemeral(true)
                     )
                     .await
                 {
