@@ -8,12 +8,16 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'k8s/mussubotti-deployment.yaml'
+      - 'k8s/work-hours-deployment.yaml'
+      - 'Dockerfile'
+      - 'Dockerfile.work_hours'
       - '.github/workflows/mussubotti-deploy.yml'
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/dilaz/mussubotti
+  BOT_IMAGE_NAME: ghcr.io/dilaz/mussubotti
+  WORK_HOURS_IMAGE_NAME: ghcr.io/dilaz/mussubotti-work-hours
   K3S_CONTEXT: default
 
 jobs:
@@ -65,10 +69,12 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mussubotti
-          path: target/release/mussubotti
+          name: mussubotti-binaries
+          path: |
+            target/release/mussubotti
+            target/release/work_hours
 
-  build-and-push-image:
+  build-and-push-images:
     needs: build-and-test
     runs-on: ubuntu-latest
     permissions:
@@ -88,24 +94,47 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      - name: Extract metadata (tags, labels) for Discord Bot image
+        id: bot_meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.BOT_IMAGE_NAME }}
           tags: |
             type=sha,format=short
             type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       
-      - name: Build and push the Docker image
+      - name: Extract metadata (tags, labels) for Work Hours image
+        id: work_hours_meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.WORK_HOURS_IMAGE_NAME }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build and push the Discord Bot Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm/v7,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.bot_meta.outputs.tags }}
+          labels: ${{ steps.bot_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push the Work Hours Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.work_hours
+          push: true
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          tags: ${{ steps.work_hours_meta.outputs.tags }}
+          labels: ${{ steps.work_hours_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           
@@ -113,8 +142,8 @@ jobs:
         id: sha
         run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-  deploy-mussubotti:
-    needs: build-and-push-image
+  deploy-services:
+    needs: build-and-push-images
     runs-on: ubuntu-latest
     
     steps:
@@ -134,10 +163,11 @@ jobs:
           k8s-url: ${{ secrets.KUBERNETES_HOST }}
           k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
       
-      - name: Deploy mussubotti
+      - name: Deploy services
         run: |
           TAG=$(echo ${{ github.sha }} | cut -c1-7)
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
+          BOT_IMAGE="${{ env.BOT_IMAGE_NAME }}:$TAG"
+          WORK_HOURS_IMAGE="${{ env.WORK_HOURS_IMAGE_NAME }}:$TAG"
           
           # Create namespace if it doesn't exist
           kubectl get namespace mussubot || kubectl create namespace mussubot
@@ -155,8 +185,13 @@ jobs:
               --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }}
           fi
           
-          # Apply mussubotti deployment
-          cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
+          # Apply Discord bot deployment
+          cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.BOT_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
+          
+          # Apply Work Hours deployment if the yaml file exists
+          if [ -f k8s/work-hours-deployment.yaml ]; then
+            cat k8s/work-hours-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.WORK_HOURS_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
+          fi
           
           # Create configmap if it doesn't exist
           if ! kubectl get configmap mussubotti-config -n mussubot &>/dev/null; then
@@ -171,4 +206,7 @@ jobs:
       
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/mussubotti -n mussubot 
+          kubectl rollout status deployment/mussubotti -n mussubot
+          if kubectl get deployment/work-hours -n mussubot &>/dev/null; then
+            kubectl rollout status deployment/work-hours -n mussubot
+          fi 
