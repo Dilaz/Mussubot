@@ -17,7 +17,6 @@ pub mod work_schedule;
 // Re-export Google Calendar handle
 pub use google_calendar::GoogleCalendarHandle;
 // Re-export Work Schedule handle
-pub use work_schedule::WorkScheduleHandle;
 
 /// Component trait that all components must implement
 #[async_trait]
