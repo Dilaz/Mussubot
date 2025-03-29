@@ -24,6 +24,10 @@ pub enum Error {
     #[diagnostic(code(mussubot::google_calendar))]
     GoogleCalendar(String),
 
+    #[error("Work Schedule error: {0}")]
+    #[diagnostic(code(mussubot::work_schedule))]
+    WorkSchedule(String),
+
     #[error("Component error: {0}")]
     #[diagnostic(code(mussubot::component))]
     Component(String),
@@ -92,6 +96,11 @@ pub fn component_error(message: &str) -> Error {
 /// Helper to create Google Calendar errors
 pub fn google_calendar_error(message: &str) -> Error {
     Error::GoogleCalendar(message.to_string())
+}
+
+/// Helper to create Work Schedule errors
+pub fn work_schedule_error(message: &str) -> Error {
+    Error::WorkSchedule(message.to_string())
 }
 
 /// Helper to create other errors

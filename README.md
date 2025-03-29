@@ -12,6 +12,7 @@ A modular Discord bot that integrates with Google Calendar to send notifications
 - 💾 **Configuration via environment variables**: All settings are loaded from `.env` file
 - 🎮 **Custom status**: The bot displays a custom "playing" status that can be configured
 - 🐳 **Docker support**: Run the bot with Redis using Docker Compose
+- 🌐 **Internationalization**: Support for multiple languages through the i18n system
 
 ## Getting Started
 
@@ -91,8 +92,21 @@ GUILD_ID=1234567890123456789
 # Timezone (default: UTC)
 TIMEZONE=Europe/Helsinki
 
+# Logging configuration
+RUST_LOG=debug,serenity=info,poise=info
+
+# Default bot locale (default: en-US)
+BOT_LOCALE=fi-FI
+
 # Bot activity status (default: "Leikkii lankakerällä")
 BOT_ACTIVITY=Leikkii lankakerällä
+
+# Gemini AI Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-pro-exp-03-25
+
+# Default employee name for work hours tracking
+DEFAULT_EMPLOYEE_NAME=Veera
 
 # Redis connection URL
 # Use redis:6379 when running with docker-compose
@@ -114,6 +128,34 @@ RUST_LOG=debug,serenity=info,poise=info cargo run
 - `/ping` - Check if the bot is responsive
 - `/dummy [param]` - A dummy command that can be customized (placeholder for future implementations)
 - `/this_week [timezone]` - Get a list of this week's calendar events with optional timezone parameter
+
+## Internationalization (i18n)
+
+The bot supports multiple languages using the [rust-i18n](https://github.com/longbridge/rust-i18n) library. The following languages are currently supported:
+
+- English (en-US) - Default
+- Finnish (fi-FI)
+
+You can set the default locale using the `BOT_LOCALE` environment variable in your `.env` file. Translation files are stored in the `locales` directory in YAML format.
+
+To use translations in your code:
+
+```rust
+// Basic usage
+let message = t!("ping_response");
+
+// With parameters
+let message = t!("dummy_command_with_param", param = "test");
+
+// With multiple parameters
+let message = t!("calendar_this_week_title", timezone = "Europe/London");
+```
+
+To add a new language:
+
+1. Create a new file in the `locales` directory named with the locale code (e.g., `de-DE.yaml`)
+2. Copy the contents from an existing language file and translate the strings
+3. Add the new locale to the supported locales list in the documentation
 
 ## Docker Compose Configuration
 

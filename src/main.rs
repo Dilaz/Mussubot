@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate rust_i18n;
+
 mod commands;
 mod components;
 mod config;
@@ -8,6 +11,9 @@ mod startup;
 mod utils;
 
 use tracing::info;
+
+// Initialize i18n
+i18n!("locales", fallback = "en");
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {

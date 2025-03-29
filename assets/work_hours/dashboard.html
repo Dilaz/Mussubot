@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Work Hours Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-900 min-h-screen text-gray-200">
+    <div class="container mx-auto p-4">
+        <header class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
+            <h1 class="text-3xl font-bold text-gray-100">Work Hours Manager</h1>
+            <p class="text-gray-400">Upload and manage employee work schedules</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Quick Actions Card -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-md col-span-1">
+                <h2 class="text-xl font-semibold mb-4 text-gray-100">Quick Actions</h2>
+                <div class="space-y-3">
+                    <a href="/upload" class="block w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-center">
+                        Upload New Schedule
+                    </a>
+                    <button class="block w-full bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-center">
+                        Generate Report
+                    </button>
+                    <a href="/" class="block w-full bg-gray-700 text-gray-200 px-4 py-2 rounded-md hover:bg-gray-600 text-center">
+                        Back to Home
+                    </a>
+                </div>
+            </div>
+
+            <!-- Schedules Card -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-md col-span-2">
+                <h2 class="text-xl font-semibold mb-4 text-gray-100">Employee Schedules</h2>
+                
+                <!-- Search -->
+                <div class="mb-4">
+                    <input type="text" placeholder="Search by employee name..." 
+                        class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white">
+                </div>
+                
+                <!-- Employee List -->
+                <div class="space-y-4">
+                    <!-- Example employee schedules - in a real app, these would be dynamically generated -->
+                    <div class="border border-gray-700 rounded-md p-4 hover:bg-gray-700">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-medium text-gray-100">John Doe</h3>
+                            <span class="text-sm text-gray-400">Last updated: Yesterday</span>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Monday: 8AM-4PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Tuesday: 8AM-4PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Wednesday: 8AM-4PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Thursday: 8AM-4PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Friday: 8AM-4PM</span>
+                            <span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">Saturday: Off</span>
+                            <span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">Sunday: Off</span>
+                        </div>
+                        <div class="mt-3 flex justify-end space-x-2">
+                            <button class="text-sm text-blue-400 hover:underline">View Details</button>
+                            <button class="text-sm text-red-400 hover:underline">Delete</button>
+                        </div>
+                    </div>
+                    
+                    <div class="border border-gray-700 rounded-md p-4 hover:bg-gray-700">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-medium text-gray-100">Jane Smith</h3>
+                            <span class="text-sm text-gray-400">Last updated: 3 days ago</span>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Monday: 9AM-5PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Tuesday: 9AM-5PM</span>
+                            <span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">Wednesday: Off</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Thursday: 9AM-5PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Friday: 9AM-5PM</span>
+                            <span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded">Saturday: 10AM-2PM</span>
+                            <span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">Sunday: Off</span>
+                        </div>
+                        <div class="mt-3 flex justify-end space-x-2">
+                            <button class="text-sm text-blue-400 hover:underline">View Details</button>
+                            <button class="text-sm text-red-400 hover:underline">Delete</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="mt-6 flex justify-between items-center">
+                    <div class="text-sm text-gray-400">
+                        Showing 2 of 2 employees
+                    </div>
+                    <div class="flex space-x-2">
+                        <button disabled class="px-3 py-1 border border-gray-700 rounded text-gray-500 bg-gray-800">Previous</button>
+                        <button disabled class="px-3 py-1 border border-gray-700 rounded text-gray-500 bg-gray-800">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

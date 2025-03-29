@@ -1,0 +1,119 @@
+name: Work Hours Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'work_hours/**'
+      - 'Dockerfile.work_hours'
+      - 'k8s/work-hours-deployment.yaml'
+      - 'k8s/work-hours-service-ingress.yaml'
+      - '.github/workflows/work-hours-deploy.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/dilaz/mussubotti
+  K3S_CONTEXT: default
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build and push the Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+      - name: Extract short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+  deploy-work-hours:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Tailscale
+        uses: tailscale/github-action@main
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      
+      - name: Set the Kubernetes context
+        uses: azure/k8s-set-context@v2
+        with:
+          method: service-account
+          k8s-url: ${{ secrets.KUBERNETES_HOST }}
+          k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
+      
+      - name: Deploy work-hours
+        run: |
+          TAG=$(echo ${{ github.sha }} | cut -c1-7)
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
+          
+          # Create namespace if it doesn't exist
+          kubectl get namespace mussubot || kubectl create namespace mussubot
+          
+          # Create k8s secrets if they don't exist
+          if ! kubectl get secret mussubotti-secrets -n mussubot &>/dev/null; then
+            kubectl create secret generic mussubotti-secrets \
+              -n mussubot \
+              --from-literal=DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }} \
+              --from-literal=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
+              --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+              --from-literal=GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }} \
+              --from-literal=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+              --from-literal=GEMINI_MODEL=${{ secrets.GEMINI_MODEL }} \
+              --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }}
+          fi
+          
+          # Apply work-hours deployment
+          cat k8s/work-hours-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
+          
+          # Apply work-hours service and ingress
+          cat k8s/work-hours-service-ingress.yaml | sed "s|\${WORK_HOURS_DOMAIN}|${{ secrets.WORK_HOURS_DOMAIN }}|g" | kubectl apply -f -
+          
+          # Create configmap if it doesn't exist
+          if ! kubectl get configmap mussubotti-config -n mussubot &>/dev/null; then
+            kubectl apply -f k8s/configmap.yaml
+          fi
+      
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/work-hours -n mussubot 

@@ -113,4 +113,23 @@ If you encounter issues with your deployment:
 4. Check Redis service:
    ```sh
    kubectl describe -n mussubot service redis-master
-   ``` 
+   ```
+
+## Deployment Files Organization
+
+The Kubernetes manifests are now split into separate files for better organization and independent deployment:
+
+- `mussubotti-deployment.yaml`: Deployment manifest for the Discord bot
+- `work-hours-deployment.yaml`: Deployment manifest for the work hours web application
+- `work-hours-service-ingress.yaml`: Service and Ingress definitions for the work hours application
+- `configmap.yaml`: Configuration map shared by both applications
+- `secret.yaml`: Secret definitions (see below for how to create them)
+
+Each component has its own GitHub Actions workflow:
+
+- `.github/workflows/mussubotti-deploy.yml`: Builds and deploys the Discord bot
+- `.github/workflows/work-hours-deploy.yml`: Builds and deploys the work hours web application
+
+## Deployment Process
+
+The components can now be deployed independently, triggered by changes to their respective files. You can also manually trigger deployments using the GitHub Actions web interface. 

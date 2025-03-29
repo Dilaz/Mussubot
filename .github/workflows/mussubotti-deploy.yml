@@ -1,10 +1,15 @@
-name: CI/CD Pipeline
+name: Mussubotti Bot Deployment
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'k8s/mussubotti-deployment.yaml'
+      - '.github/workflows/mussubotti-deploy.yml'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -65,7 +70,6 @@ jobs:
 
   build-and-push-image:
     needs: build-and-test
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -108,19 +112,9 @@ jobs:
       - name: Extract short SHA
         id: sha
         run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
-      
-      # - name: Apply Docker Slim for amd64
-      #   uses: kitabisa/docker-slim-action@v1
-      #   id: slim
-      #   env:
-      #     DSLIM_HTTP_PROBE: false
-      #   with:
-      #     target: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.sha.outputs.short }}
-      #     tag: "sha-${{ steps.sha.outputs.short }}-slim,latest-slim"
 
-  deploy:
+  deploy-mussubotti:
     needs: build-and-push-image
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     
     steps:
@@ -139,10 +133,8 @@ jobs:
           method: service-account
           k8s-url: ${{ secrets.KUBERNETES_HOST }}
           k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
-      - name: Checkout source code
-        uses: actions/checkout@v3
       
-      - name: Update k8s deployment image
+      - name: Deploy mussubotti
         run: |
           TAG=$(echo ${{ github.sha }} | cut -c1-7)
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
@@ -151,16 +143,25 @@ jobs:
           kubectl get namespace mussubot || kubectl create namespace mussubot
           
           # Create k8s secrets if they don't exist
-          kubectl get secret mussubotti-secrets -n mussubot || kubectl create secret generic mussubotti-secrets \
-            -n mussubot \
-            --from-literal=DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }} \
-            --from-literal=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-            --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
-            --from-literal=GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }}
+          if ! kubectl get secret mussubotti-secrets -n mussubot &>/dev/null; then
+            kubectl create secret generic mussubotti-secrets \
+              -n mussubot \
+              --from-literal=DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }} \
+              --from-literal=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
+              --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+              --from-literal=GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }} \
+              --from-literal=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+              --from-literal=GEMINI_MODEL=${{ secrets.GEMINI_MODEL }} \
+              --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }}
+          fi
           
-          # Apply k8s manifests
-          cat k8s/deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
-          kubectl apply -f k8s/configmap.yaml
+          # Apply mussubotti deployment
+          cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
+          
+          # Create configmap if it doesn't exist
+          if ! kubectl get configmap mussubotti-config -n mussubot &>/dev/null; then
+            kubectl apply -f k8s/configmap.yaml
+          fi
           
           # Update Redis URL in configmap if needed
           kubectl patch configmap mussubotti-config \

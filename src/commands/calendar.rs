@@ -10,7 +10,7 @@ pub async fn this_week(
     #[description = "Optional timezone (e.g. 'Europe/London')"] timezone: Option<String>,
 ) -> CommandResult {
     // Start response with waiting message
-    let response = ctx.say("Fetching calendar events for this week...").await?;
+    let response = ctx.say(t!("fetch_processing", resource = "calendar events for this week")).await?;
 
     // Get the config from ctx.data()
     let config = ctx.data().config.clone();
@@ -64,7 +64,7 @@ pub async fn this_week(
         Ok(tz) => tz,
         Err(_) => {
             // Simply send a new message instead of editing
-            let error_msg = format!("❌ Error: Invalid timezone '{}'", timezone_str);
+            let error_msg = t!("calendar_invalid_timezone", timezone = timezone_str);
             ctx.send(
                 poise::CreateReply::default()
                     .content(error_msg)
@@ -83,7 +83,7 @@ pub async fn this_week(
         Ok(events) => events,
         Err(e) => {
             // Simply send a new message instead of editing
-            let error_msg = format!("❌ Error fetching events: {}", e);
+            let error_msg = t!("calendar_error_fetching", error = e.to_string());
             ctx.send(
                 poise::CreateReply::default()
                     .content(error_msg)
@@ -126,10 +126,11 @@ pub async fn this_week(
         a_date.cmp(&b_date)
     });
 
-    let mut message = format!("📊 **This Week's Calendar Events** ({})\n\n", timezone_str);
+    let mut message = t!("calendar_this_week_title", timezone = timezone_str).to_string();
+    message.push_str("\n\n");
 
     if weekly_events.is_empty() {
-        message.push_str("No events scheduled for this week!");
+        message.push_str(&t!("calendar_no_events"));
     } else {
         let mut current_date = None;
 
@@ -143,16 +144,16 @@ pub async fn this_week(
                 }
             }
 
-            let title = event.summary.as_deref().unwrap_or("Untitled Event");
+            let title = event.summary.clone().unwrap_or(t!("calendar_unnamed_event").to_string());
             let start_time = if let Some(date_time) = &event.start_date_time {
                 // date_time is a string in RFC3339 format
                 if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(date_time) {
                     format!("{}", dt.with_timezone(&timezone).format("%H:%M"))
                 } else {
-                    "Unknown time".to_string()
+                    t!("calendar_unknown_time").to_string()
                 }
             } else {
-                "All day".to_string()
+                t!("calendar_all_day").to_string()
             };
 
             message.push_str(&format!("• **{}** - {}\n", start_time, title));
@@ -168,7 +169,7 @@ pub async fn this_week(
 
 // Helper function to get event date
 fn get_event_date(
-    event: &crate::components::google_calendar::CalendarEvent,
+    event: &crate::components::google_calendar::models::CalendarEvent,
     timezone: &Tz,
 ) -> chrono::NaiveDate {
     if let Some(date_time) = &event.start_date_time {

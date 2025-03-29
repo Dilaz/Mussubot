@@ -1,10 +1,9 @@
-use super::handle::GoogleCalendarHandle;
-use super::models::CalendarEvent;
-use super::time::get_event_start;
+use crate::components::google_calendar::handle::GoogleCalendarHandle;
+use crate::components::google_calendar::models::CalendarEvent;
+use crate::components::google_calendar::time::get_event_start;
 use crate::error::BotResult;
 use chrono::{Duration, Local};
 use poise::serenity_prelude as serenity;
-
 /// Send daily notification of calendar events
 pub async fn send_daily_notification(
     ctx: &serenity::Context,
@@ -24,9 +23,10 @@ pub async fn send_daily_notification(
     }
 
     if !today_events.is_empty() {
-        let mut message = "📅 **Tänään:**\n".to_string();
+        let mut message = t!("calendar_daily_title").to_string();
+        message.push('\n');
         for (event, start) in today_events {
-            let summary = event.summary.as_deref().unwrap_or("Unnamed event");
+            let summary = event.summary.as_deref().unwrap_or("calendar_unnamed_event");
             let time = start.format("%H:%M").to_string();
             message.push_str(&format!("• {} ({})\n", summary, time));
         }
@@ -61,7 +61,7 @@ pub async fn send_weekly_notification(
     }
 
     if !week_events.is_empty() {
-        let mut message = "📅 **Tämä viikko:**\n".to_string();
+        let mut message = t!("calendar_weekly_title").to_string();
         let mut current_date = today;
 
         while current_date < week_end {
@@ -73,7 +73,7 @@ pub async fn send_weekly_notification(
             if !day_events.is_empty() {
                 message.push_str(&format!("\n**{}:**\n", current_date.format("%A %d.%m.")));
                 for (event, start) in day_events {
-                    let summary = event.summary.as_deref().unwrap_or("Unnamed event");
+                    let summary = event.summary.as_deref().unwrap_or("calendar_unnamed_event");
                     let time = start.format("%H:%M").to_string();
                     message.push_str(&format!("• {} ({})\n", summary, time));
                 }
@@ -98,13 +98,14 @@ pub async fn send_new_events_notification(
     events: &[CalendarEvent],
 ) -> BotResult<()> {
     if !events.is_empty() {
-        let mut message = "📅 **Uudet tapahtumat:**\n".to_string();
+        let mut message = t!("calendar_new_events_title").to_string();
+        message.push('\n');
         for event in events {
-            let summary = event.summary.as_deref().unwrap_or("Unnamed event");
+            let summary = event.summary.as_deref().unwrap_or("calendar_unnamed_event");
             let time = if let Ok(Some(start)) = get_event_start(event) {
                 format!("{}", start.format("%d.%m. %H:%M"))
             } else {
-                "Aika ei tiedossa".to_string()
+                t!("calendar_unknown_time").to_string()
             };
             message.push_str(&format!("• {} ({})\n", summary, time));
         }

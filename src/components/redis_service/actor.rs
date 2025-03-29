@@ -1,7 +1,7 @@
 use crate::components::google_calendar::models::CalendarEvent;
 use crate::config::Config;
 use crate::error::{google_calendar_error, BotResult};
-use redis::{aio::Connection, AsyncCommands, Client as RedisClient};
+use redis::{aio::MultiplexedConnection, AsyncCommands, Client as RedisClient};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -26,6 +26,7 @@ pub enum RedisCommand {
     GetEvents(mpsc::Sender<BotResult<Vec<CalendarEvent>>>),
     GetToken(mpsc::Sender<BotResult<Option<Value>>>),
     SaveToken(Value, mpsc::Sender<BotResult<()>>),
+    RunCommand(redis::Cmd, mpsc::Sender<BotResult<redis::Value>>),
     Shutdown,
 }
 
@@ -98,6 +99,34 @@ impl RedisActorHandle {
             .ok_or_else(|| google_calendar_error("Response channel closed"))?
     }
 
+    /// Execute a custom Redis command
+    pub async fn run_command<T: redis::FromRedisValue>(&self, cmd: redis::Cmd) -> BotResult<T> {
+        // Create a channel for the result
+        let (response_tx, mut response_rx) = mpsc::channel(1);
+        
+        // Create a custom command
+        self.command_tx
+            .send(RedisCommand::RunCommand(cmd, response_tx))
+            .await
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+
+        // Wait for the result
+        let result: BotResult<redis::Value> = response_rx
+            .recv()
+            .await
+            .ok_or_else(|| google_calendar_error("Response channel closed"))?;
+        
+        // Convert redis::Value to the requested type T
+        match result {
+            Ok(value) => {
+                T::from_redis_value(&value).map_err(|e| {
+                    google_calendar_error(&format!("Type conversion error: {}", e))
+                })
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     /// Shutdown the actor
     pub async fn shutdown(&self) -> BotResult<()> {
         let _ = self.command_tx.send(RedisCommand::Shutdown).await;
@@ -148,6 +177,10 @@ impl RedisActor {
                     let result = self.save_token_to_redis(token).await;
                     let _ = response_tx.send(result).await;
                 }
+                RedisCommand::RunCommand(cmd, response_tx) => {
+                    let result = self.run_command(cmd).await;
+                    let _ = response_tx.send(result).await;
+                }
                 RedisCommand::Shutdown => {
                     info!("Redis actor shutting down");
                     break;
@@ -159,7 +192,7 @@ impl RedisActor {
     }
 
     /// Get a redis connection
-    async fn get_redis_connection(&self) -> BotResult<Connection> {
+    async fn get_redis_connection(&self) -> BotResult<MultiplexedConnection> {
         // Get Redis URL from config
         let redis_url = {
             let config_guard = self.config.read().await;
@@ -175,8 +208,8 @@ impl RedisActor {
             self.client.clone()
         };
 
-        let result: BotResult<Connection> = redis
-            .get_async_connection()
+        let result: BotResult<MultiplexedConnection> = redis
+            .get_multiplexed_async_connection()
             .await
             .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {}", e)));
         result
@@ -286,5 +319,16 @@ impl RedisActor {
             })?;
 
         Ok(())
+    }
+
+    /// Execute a custom Redis command
+    async fn run_command(&self, cmd: redis::Cmd) -> BotResult<redis::Value> {
+        // Get Redis connection
+        let mut redis_conn = self.get_redis_connection().await?;
+        
+        // Execute the command
+        cmd.query_async(&mut redis_conn).await.map_err(|e| {
+            google_calendar_error(&format!("Failed to execute Redis command: {}", e))
+        })
     }
 }

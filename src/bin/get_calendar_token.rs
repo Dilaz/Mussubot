@@ -99,6 +99,8 @@ async fn main() -> BotResult<()> {
         return Err(other_error("Token data is not an object"));
     };
 
+    println!("Token data: {:?}", token_data);
+
     // Save token using TokenManager
     token_manager.set_token(token_data).await?;
 
