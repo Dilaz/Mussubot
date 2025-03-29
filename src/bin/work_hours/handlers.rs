@@ -203,11 +203,48 @@ pub async fn upload_handler(
         auth.claims.name.clone().unwrap_or_else(get_default_employee_name)
     });
     
+    // Validate the employee name
+    if name_val.trim().is_empty() {
+        error!("Employee name cannot be empty");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
+    if name_val.len() > 100 {
+        error!("Employee name is too long");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
+    // Ensure the name contains only valid characters (letters, spaces, and common punctuation)
+    if !name_val.chars().all(|c| c.is_alphabetic() || c.is_whitespace() || c == '.' || c == '-' || c == '\'') {
+        error!("Employee name contains invalid characters");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     // Clone name for logging
     let name_for_log = name_val.clone();
     
     // Process the file and schedule
     if let Some(file_data) = schedule_file {
+        // Validate the file
+        if file_data.is_empty() {
+            error!("Uploaded file is empty");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        
+        // Check file size (limit to 10MB as a reasonable maximum)
+        const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+        if file_data.len() > MAX_FILE_SIZE {
+            error!("Uploaded file is too large");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        
+        // Simple check for common image formats
+        let is_valid_image = validate_image_format(&file_data);
+        if !is_valid_image {
+            error!("Uploaded file is not a valid image");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        
         // Parse the schedule
         match parse_schedule_image(&name_val, &file_data).await {
             Ok(schedule) => {
@@ -237,4 +274,32 @@ pub async fn upload_handler(
 // Handler for API health check
 pub async fn health_handler() -> &'static str {
     "OK"
+}
+
+/// Validates if the given data appears to be a valid image format by checking common image signatures
+fn validate_image_format(data: &[u8]) -> bool {
+    if data.len() < 8 {
+        return false; // Too small to be a valid image
+    }
+
+    // Check for common image format signatures
+    match &data[0..4] {
+        // JPEG signature (0xFF 0xD8 0xFF)
+        sig if sig.starts_with(&[0xFF, 0xD8, 0xFF]) => true,
+        
+        // PNG signature (0x89 'P' 'N' 'G')
+        [0x89, 0x50, 0x4E, 0x47] => true,
+        
+        // GIF signatures ('G' 'I' 'F' '8')
+        [0x47, 0x49, 0x46, 0x38] => true,
+        
+        // BMP signature ('B' 'M')
+        [0x42, 0x4D, ..] => true,
+        
+        // WebP signature ('R' 'I' 'F' 'F' ... 'W' 'E' 'B' 'P')
+        [0x52, 0x49, 0x46, 0x46] if data.len() >= 12 && &data[8..12] == [0x57, 0x45, 0x42, 0x50] => true,
+        
+        // Unknown format
+        _ => false,
+    }
 }
