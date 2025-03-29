@@ -321,9 +321,7 @@ fn validate_image_format(data: &[u8]) -> bool {
         [0x42, 0x4D, ..] => true,
 
         // WebP signature ('R' 'I' 'F' 'F' ... 'W' 'E' 'B' 'P')
-        [0x52, 0x49, 0x46, 0x46]
-            if data.len() >= 12 && data[8..12] == [0x57, 0x45, 0x42, 0x50] =>
-        {
+        [0x52, 0x49, 0x46, 0x46] if data.len() >= 12 && data[8..12] == [0x57, 0x45, 0x42, 0x50] => {
             true
         }
 
