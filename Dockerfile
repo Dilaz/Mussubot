@@ -22,31 +22,26 @@ RUN find /usr -name "libclang.so*" -exec dirname {} \; | head -n 1 > /tmp/libcla
 COPY Cargo.toml Cargo.lock ./
 
 # Create dummy source and bin directory structure
-RUN mkdir -p src/bin/work_hours && \
+RUN mkdir -p src && \
     echo "fn main() {}" > src/main.rs && \
-    echo "fn main() {}" > src/bin/get_calendar_token.rs && \
-    echo "fn main() {}" > src/bin/work_hours/main.rs && \
     . /etc/environment && \
-    cargo build --release && \
-    cargo build --release --bin work_hours --features web-interface && \
+    cargo build --release --bin mussubotti && \
     rm -rf src
 
 # Now copy the actual source code
 COPY src/ ./src/
 
-# Build the actual applications
+# Build the main application
 RUN . /etc/environment && \
-    cargo build --release --bin mussubotti && \
-    cargo build --release --bin work_hours --features web-interface
+    cargo build --release --bin mussubotti
 
 # Runtime stage
 FROM gcr.io/distroless/cc-debian12
 
 WORKDIR /app
 
-# Copy the compiled binaries from builder
+# Copy the compiled binary from builder
 COPY --from=builder /app/target/release/mussubotti /app/mussubotti
-COPY --from=builder /app/target/release/work_hours /app/work_hours
 
 # Set the entrypoint
 ENTRYPOINT ["/app/mussubotti"]

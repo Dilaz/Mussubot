@@ -30,8 +30,9 @@ RUN mkdir -p src/bin/work_hours && \
     cargo build --release --bin work_hours --features web-interface && \
     rm -rf src
 
-# Now copy the actual source code
+# Now copy the actual source code and assets
 COPY src/ ./src/
+COPY assets/ ./assets/
 
 # Build the work_hours application
 RUN . /etc/environment && \
@@ -44,6 +45,8 @@ WORKDIR /app
 
 # Copy the compiled binary from builder
 COPY --from=builder /app/target/release/work_hours /app/work_hours
+# Copy assets to the runtime container
+COPY --from=builder /app/assets/ /app/assets/
 
 # Expose the port for the web server
 EXPOSE 3000
