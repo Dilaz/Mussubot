@@ -38,12 +38,18 @@ impl WorkScheduleHandle {
     }
 
     /// Get schedule for a specific employee
-    pub async fn get_schedule_for_employee(&self, employee: impl Into<String>) -> BotResult<EmployeeSchedule> {
+    pub async fn get_schedule_for_employee(
+        &self,
+        employee: impl Into<String>,
+    ) -> BotResult<EmployeeSchedule> {
         self.actor_handle.get_schedule_for_employee(employee).await
     }
 
     /// Get schedule for all employees on a specific date
-    pub async fn get_schedule_for_date(&self, date: impl Into<String>) -> BotResult<HashMap<String, WorkScheduleEntry>> {
+    pub async fn get_schedule_for_date(
+        &self,
+        date: impl Into<String>,
+    ) -> BotResult<HashMap<String, WorkScheduleEntry>> {
         self.actor_handle.get_schedule_for_date(date).await
     }
 
@@ -67,17 +73,17 @@ impl WorkScheduleHandle {
     ) -> BotResult<WorkScheduleEntry> {
         let employee = employee.into();
         let date = date.into();
-        
+
         // Get all dates for this employee to check if the date exists
         let schedule = self.get_schedule_for_employee(employee.clone()).await?;
-        
+
         // Find the entry for the given date
         for entry in schedule.schedule {
             if entry.date == date {
                 return Ok(entry);
             }
         }
-        
+
         // If no entry is found, create a default one
         Ok(WorkScheduleEntry::new(date))
     }
@@ -86,4 +92,4 @@ impl WorkScheduleHandle {
     pub async fn shutdown(&self) -> BotResult<()> {
         self.actor_handle.shutdown().await
     }
-} 
+}

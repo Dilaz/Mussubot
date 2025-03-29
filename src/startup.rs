@@ -1,11 +1,13 @@
-use crate::commands::{get_all_application_commands, CommandContext, create_error_embed};
-use crate::components::{google_calendar::GoogleCalendar, work_schedule::WorkSchedule, ComponentManager};
+use crate::commands::{create_error_embed, get_all_application_commands, CommandContext};
+use crate::components::{
+    google_calendar::GoogleCalendar, work_schedule::WorkSchedule, ComponentManager,
+};
 use crate::config::Config;
 use crate::error::Error;
 use crate::shutdown;
 use poise::serenity_prelude as serenity;
-use serenity::model::user::OnlineStatus;
 use rust_i18n::t;
+use serenity::model::user::OnlineStatus;
 use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 use tracing::{error, info};
@@ -85,7 +87,7 @@ pub async fn start_bot(config: Arc<RwLock<Config>>) -> miette::Result<()> {
 
     // Register Google Calendar component
     component_manager.register(GoogleCalendar::new());
-    
+
     // Register Work Schedule component
     component_manager.register(WorkSchedule::new());
 
@@ -195,9 +197,9 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
                     poise::CreateReply::default()
                         .embed(create_error_embed(
                             &t!("error_title", context = "command"),
-                            &format!("{}", error)
+                            &format!("{}", error),
                         ))
-                        .ephemeral(true)
+                        .ephemeral(true),
                 )
                 .await
             {
@@ -212,9 +214,9 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
                         poise::CreateReply::default()
                             .embed(create_error_embed(
                                 &t!("error_title", context = "check"),
-                                &format!("{}", error)
+                                &format!("{}", error),
                             ))
-                            .ephemeral(true)
+                            .ephemeral(true),
                     )
                     .await
                 {

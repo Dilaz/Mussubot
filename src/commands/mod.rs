@@ -81,7 +81,7 @@ pub fn get_all_application_commands() -> Vec<poise::Command<CommandContext, crat
 
     // Add calendar commands
     commands.push(calendar::this_week());
-    
+
     // Add work schedule commands
     commands.push(work::tyovuorot());
     commands.push(work::day());

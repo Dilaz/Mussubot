@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 /// Represents a day's work hours
@@ -18,7 +18,7 @@ pub struct WorkDay {
     pub notes: Option<String>,
 }
 
-/// Represents a complete work schedule 
+/// Represents a complete work schedule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkSchedule {
     /// The employee name
@@ -38,7 +38,7 @@ impl WorkSchedule {
             last_updated: Utc::now(),
         }
     }
-    
+
     /// Add a day to the schedule
     pub fn add_day(&mut self, day: WorkDay) {
         self.days.push(day);
@@ -62,13 +62,17 @@ pub struct ScheduleParsingResult {
 pub trait WorkHoursDb: Send + Sync + 'static {
     /// Get a schedule for an employee
     async fn get_schedule(&self, employee_name: &str) -> Result<Option<WorkSchedule>, String>;
-    
+
     /// Store a schedule for an employee
-    async fn set_schedule(&self, employee_name: &str, schedule: &WorkSchedule) -> Result<(), String>;
-    
+    async fn set_schedule(
+        &self,
+        employee_name: &str,
+        schedule: &WorkSchedule,
+    ) -> Result<(), String>;
+
     /// List all employee names with schedules
     async fn list_employees(&self) -> Result<Vec<String>, String>;
-    
+
     /// Delete a schedule for an employee
     async fn delete_schedule(&self, employee_name: &str) -> Result<(), String>;
 }
@@ -85,18 +89,22 @@ impl WorkHoursDb for InMemoryDb {
         let schedules = self.schedules.read().await;
         Ok(schedules.get(employee_name).cloned())
     }
-    
-    async fn set_schedule(&self, employee_name: &str, schedule: &WorkSchedule) -> Result<(), String> {
+
+    async fn set_schedule(
+        &self,
+        employee_name: &str,
+        schedule: &WorkSchedule,
+    ) -> Result<(), String> {
         let mut schedules = self.schedules.write().await;
         schedules.insert(employee_name.to_string(), schedule.clone());
         Ok(())
     }
-    
+
     async fn list_employees(&self) -> Result<Vec<String>, String> {
         let schedules = self.schedules.read().await;
         Ok(schedules.keys().cloned().collect())
     }
-    
+
     async fn delete_schedule(&self, employee_name: &str) -> Result<(), String> {
         let mut schedules = self.schedules.write().await;
         schedules.remove(employee_name);

@@ -40,4 +40,4 @@ impl WorkScheduleEntry {
 pub struct EmployeeSchedule {
     pub employee: String,
     pub schedule: Vec<WorkScheduleEntry>,
-} 
+}

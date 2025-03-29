@@ -26,7 +26,10 @@ pub struct WorkScheduleActor {
 pub enum WorkScheduleCommand {
     GetEmployees(mpsc::Sender<BotResult<Vec<String>>>),
     GetScheduleForEmployee(String, mpsc::Sender<BotResult<EmployeeSchedule>>),
-    GetScheduleForDate(String, mpsc::Sender<BotResult<HashMap<String, WorkScheduleEntry>>>),
+    GetScheduleForDate(
+        String,
+        mpsc::Sender<BotResult<HashMap<String, WorkScheduleEntry>>>,
+    ),
     GetScheduleForDateRange(
         String,
         String,
@@ -205,7 +208,7 @@ impl WorkScheduleActor {
     async fn get_schedule_for_employee(&self, employee: &str) -> BotResult<EmployeeSchedule> {
         // First get all dates for this employee
         let dates_key = format!("{}{}", keys::WORK_HOURS_DATES_PREFIX, employee);
-        
+
         let mut custom_cmd = redis::cmd("SMEMBERS");
         custom_cmd.arg(dates_key);
 
@@ -225,14 +228,20 @@ impl WorkScheduleActor {
         let today = now.date_naive();
         let weekday_num = today.format("%u").to_string().parse::<u32>().unwrap_or(1); // 1=Monday, 7=Sunday
         let days_since_monday = weekday_num - 1;
-        let monday = today.checked_sub_signed(chrono::Duration::days(days_since_monday as i64)).unwrap_or(today);
-        let sunday = monday.checked_add_signed(chrono::Duration::days(6)).unwrap_or(monday);
+        let monday = today
+            .checked_sub_signed(chrono::Duration::days(days_since_monday as i64))
+            .unwrap_or(today);
+        let sunday = monday
+            .checked_add_signed(chrono::Duration::days(6))
+            .unwrap_or(monday);
 
         let start_date = monday.format("%Y-%m-%d").to_string();
         let end_date = sunday.format("%Y-%m-%d").to_string();
 
         // Use the date range method to get the current week's schedule
-        return self.get_schedule_for_date_range(employee, &start_date, &end_date).await;
+        return self
+            .get_schedule_for_date_range(employee, &start_date, &end_date)
+            .await;
     }
 
     /// Get a single schedule entry for employee and date
@@ -242,20 +251,20 @@ impl WorkScheduleActor {
         date: &str,
     ) -> BotResult<WorkScheduleEntry> {
         let key = format!("{}{}{}{}", keys::WORK_HOURS_DAY_PREFIX, employee, ":", date);
-        
+
         let mut custom_cmd = redis::cmd("GET");
         custom_cmd.arg(key);
 
-        let entry_json: Option<String> = self
-            .redis_handle
-            .run_command(custom_cmd)
-            .await
-            .map_err(|e| {
-                work_schedule_error(&format!(
-                    "Failed to get entry for {} on {}: {}",
-                    employee, date, e
-                ))
-            })?;
+        let entry_json: Option<String> =
+            self.redis_handle
+                .run_command(custom_cmd)
+                .await
+                .map_err(|e| {
+                    work_schedule_error(&format!(
+                        "Failed to get entry for {} on {}: {}",
+                        employee, date, e
+                    ))
+                })?;
 
         if let Some(json) = entry_json {
             let entry: WorkScheduleEntry = serde_json::from_str(&json).map_err(|e| {
@@ -285,10 +294,7 @@ impl WorkScheduleActor {
                     result.insert(employee, entry);
                 }
                 Err(e) => {
-                    error!(
-                        "Failed to get entry for {} on {}: {}",
-                        employee, date, e
-                    );
+                    error!("Failed to get entry for {} on {}: {}", employee, date, e);
                     // Continue with the next employee
                 }
             }
@@ -315,7 +321,7 @@ impl WorkScheduleActor {
 
         // Get all dates for this employee
         let dates_key = format!("{}{}", keys::WORK_HOURS_DATES_PREFIX, employee);
-        
+
         let mut custom_cmd = redis::cmd("SMEMBERS");
         custom_cmd.arg(dates_key);
 
@@ -336,7 +342,7 @@ impl WorkScheduleActor {
         let mut current = start;
         while current <= end {
             let date_str = current.format("%Y-%m-%d").to_string();
-            
+
             // If the date exists in Redis, get the entry
             if all_dates.contains(&date_str) {
                 match self.get_entry_for_employee_date(employee, &date_str).await {
@@ -354,11 +360,11 @@ impl WorkScheduleActor {
                 // Otherwise create a default entry
                 schedule.schedule.push(WorkScheduleEntry::new(date_str));
             }
-            
+
             // Move to the next day
             current = current.succ_opt().unwrap_or(end);
         }
 
         Ok(schedule)
     }
-} 
+}

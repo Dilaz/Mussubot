@@ -1,4 +1,6 @@
+use axum::http::header;
 use axum::http::StatusCode;
+use axum::response::Redirect;
 use axum::{
     http::request::Parts,
     response::{IntoResponse, Response},
@@ -8,8 +10,6 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::error;
-use axum::http::header;
-use axum::response::Redirect;
 
 /// User credentials structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,10 +49,12 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            jwt_secret: std::env::var("JWT_SECRET").unwrap_or_else(|_| "super_secret_key".to_string()),
+            jwt_secret: std::env::var("JWT_SECRET")
+                .unwrap_or_else(|_| "super_secret_key".to_string()),
             token_expiration_minutes: 60 * 24, // 24 hours
             admin_username: std::env::var("ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string()),
-            admin_password: std::env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "password".to_string()),
+            admin_password: std::env::var("ADMIN_PASSWORD")
+                .unwrap_or_else(|_| "password".to_string()),
         }
     }
 }
@@ -78,16 +80,16 @@ impl IntoResponse for AuthError {
             AuthError::MissingToken | AuthError::InvalidToken | AuthError::TokenExpired => {
                 // For authentication errors, redirect to login
                 Redirect::to("/login").into_response()
-            },
+            }
             AuthError::Unauthorized => {
                 // For authorization errors, return forbidden
                 (StatusCode::FORBIDDEN, "Not authorized").into_response()
-            },
+            }
             AuthError::Other(err) => {
                 // For other errors, log and return internal server error
                 error!("Auth error: {}", err);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
-            },
+            }
         }
     }
 }
@@ -103,7 +105,7 @@ pub fn extract_token(parts: &Parts) -> Result<String, AuthError> {
     // First check for token in cookies
     let cookie_header = parts.headers.get(header::COOKIE);
     let mut token = None;
-    
+
     if let Some(cookie) = cookie_header {
         let cookie_str = cookie.to_str().map_err(|_| AuthError::InvalidToken)?;
         for cookie_pair in cookie_str.split(';') {
@@ -114,7 +116,7 @@ pub fn extract_token(parts: &Parts) -> Result<String, AuthError> {
             }
         }
     }
-    
+
     // If no token in cookie, check Authorization header
     if token.is_none() {
         let auth_header = parts
@@ -130,7 +132,7 @@ pub fn extract_token(parts: &Parts) -> Result<String, AuthError> {
 
         token = Some(auth_str.trim_start_matches("Bearer ").trim().to_string());
     }
-    
+
     token.ok_or(AuthError::MissingToken)
 }
 
@@ -164,7 +166,12 @@ impl AuthService {
     }
 
     /// Generate a new JWT token
-    pub fn generate_token(&self, user_id: &str, name: Option<String>, role: &str) -> Result<String, String> {
+    pub fn generate_token(
+        &self,
+        user_id: &str,
+        name: Option<String>,
+        role: &str,
+    ) -> Result<String, String> {
         let now = Utc::now();
         let exp = now + Duration::minutes(self.config.token_expiration_minutes);
 

@@ -10,23 +10,19 @@ mod parser;
 use std::sync::Arc;
 
 #[cfg(feature = "web-interface")]
-use std::net::SocketAddr;
-#[cfg(feature = "web-interface")]
 use axum::{
-    Router,
-    extract::DefaultBodyLimit,
-    routing::get,
     body::Body,
-    response::{Response, IntoResponse, Redirect},
+    extract::DefaultBodyLimit,
     http::Request,
     middleware::Next,
+    response::{IntoResponse, Redirect, Response},
+    routing::get,
+    Router,
 };
 #[cfg(feature = "web-interface")]
-use tower_http::{
-    services::ServeDir,
-    trace::TraceLayer,
-    cors::CorsLayer,
-};
+use std::net::SocketAddr;
+#[cfg(feature = "web-interface")]
+use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 #[cfg(feature = "web-interface")]
 use tracing::info;
 #[cfg(feature = "web-interface")]
@@ -35,8 +31,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::auth::AuthService;
 use crate::db::RedisDB;
 use crate::handlers::{
-    index_handler, login_handler, login_form_handler, upload_handler,
-    dashboard_handler, upload_form_handler, health_handler,
+    dashboard_handler, health_handler, index_handler, login_form_handler, login_handler,
+    upload_form_handler, upload_handler,
 };
 use crate::model::WorkHoursDb;
 
@@ -75,26 +71,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Setup app state
         let upload_dir = std::env::var("UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string());
-        
+
         // Ensure upload directory exists
         std::fs::create_dir_all(&upload_dir)?;
-        
+
         let auth_config = auth::AuthConfig::default();
-        info!("Using admin credentials from environment: username={}", auth_config.admin_username);
+        info!(
+            "Using admin credentials from environment: username={}",
+            auth_config.admin_username
+        );
         let auth_service = Arc::new(AuthService::new(auth_config));
-        
+
         // Initialize database with direct Redis connection
         let db: Arc<dyn WorkHoursDb> = match RedisDB::new() {
             Ok(redis_db) => {
                 info!("Connected to Redis successfully");
                 Arc::new(redis_db)
-            },
+            }
             Err(e) => {
                 // Log the error and fall back to a mock implementation
                 tracing::error!("Failed to connect to Redis: {}", e);
                 #[cfg(not(feature = "web-interface"))]
                 panic!("Redis connection failed: {}", e);
-                
+
                 #[cfg(feature = "web-interface")]
                 {
                     info!("Using in-memory database as fallback");
@@ -102,13 +101,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         };
-        
+
         let state = AppState {
             upload_dir,
             auth_service: auth_service.clone(),
             db,
         };
-        
+
         // Authentication middleware
         async fn auth_middleware(
             req: Request<Body>,
@@ -120,10 +119,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if path == "/" || path == "/login" || path.starts_with("/assets") || path == "/health" {
                 return Ok(next.run(req).await);
             }
-            
+
             // Extract parts to use with extract_token
             let (parts, body) = req.into_parts();
-            
+
             // Use the extract_token function from auth module
             match auth::extract_token(&parts) {
                 Ok(token) => {
@@ -132,11 +131,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(claims) => {
                             // Create JwtAuth to pass along
                             let auth = auth::JwtAuth { claims };
-                            
+
                             // Reconstruct the request with auth data
                             let mut req = Request::from_parts(parts, body);
                             req.extensions_mut().insert(auth);
-                            
+
                             // User is authenticated, proceed
                             Ok(next.run(req).await)
                         }
@@ -152,13 +151,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        
+
         // Create middleware with auth service
         let auth_service_for_middleware = auth_service.clone();
         let auth_middleware = move |req: Request<Body>, next: Next| {
             auth_middleware(req, next, auth_service_for_middleware.clone())
         };
-        
+
         // Build the router
         let app = Router::new()
             .route("/", get(index_handler))

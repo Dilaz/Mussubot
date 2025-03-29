@@ -103,7 +103,7 @@ impl RedisActorHandle {
     pub async fn run_command<T: redis::FromRedisValue>(&self, cmd: redis::Cmd) -> BotResult<T> {
         // Create a channel for the result
         let (response_tx, mut response_rx) = mpsc::channel(1);
-        
+
         // Create a custom command
         self.command_tx
             .send(RedisCommand::RunCommand(cmd, response_tx))
@@ -115,14 +115,11 @@ impl RedisActorHandle {
             .recv()
             .await
             .ok_or_else(|| google_calendar_error("Response channel closed"))?;
-        
+
         // Convert redis::Value to the requested type T
         match result {
-            Ok(value) => {
-                T::from_redis_value(&value).map_err(|e| {
-                    google_calendar_error(&format!("Type conversion error: {}", e))
-                })
-            }
+            Ok(value) => T::from_redis_value(&value)
+                .map_err(|e| google_calendar_error(&format!("Type conversion error: {}", e))),
             Err(e) => Err(e),
         }
     }
@@ -325,10 +322,10 @@ impl RedisActor {
     async fn run_command(&self, cmd: redis::Cmd) -> BotResult<redis::Value> {
         // Get Redis connection
         let mut redis_conn = self.get_redis_connection().await?;
-        
+
         // Execute the command
-        cmd.query_async(&mut redis_conn).await.map_err(|e| {
-            google_calendar_error(&format!("Failed to execute Redis command: {}", e))
-        })
+        cmd.query_async(&mut redis_conn)
+            .await
+            .map_err(|e| google_calendar_error(&format!("Failed to execute Redis command: {}", e)))
     }
 }

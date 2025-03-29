@@ -10,7 +10,12 @@ pub async fn this_week(
     #[description = "Optional timezone (e.g. 'Europe/London')"] timezone: Option<String>,
 ) -> CommandResult {
     // Start response with waiting message
-    let response = ctx.say(t!("fetch_processing", resource = "calendar events for this week")).await?;
+    let response = ctx
+        .say(t!(
+            "fetch_processing",
+            resource = "calendar events for this week"
+        ))
+        .await?;
 
     // Get the config from ctx.data()
     let config = ctx.data().config.clone();
@@ -144,7 +149,10 @@ pub async fn this_week(
                 }
             }
 
-            let title = event.summary.clone().unwrap_or(t!("calendar_unnamed_event").to_string());
+            let title = event
+                .summary
+                .clone()
+                .unwrap_or(t!("calendar_unnamed_event").to_string());
             let start_time = if let Some(date_time) = &event.start_date_time {
                 // date_time is a string in RFC3339 format
                 if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(date_time) {

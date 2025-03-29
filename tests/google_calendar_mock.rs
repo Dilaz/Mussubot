@@ -1,6 +1,6 @@
 use mussubotti::components::google_calendar::models::CalendarEvent;
-use mussubotti::error::BotResult;
 use mussubotti::config::Config;
+use mussubotti::error::BotResult;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -33,22 +33,22 @@ impl MockGoogleCalendarHandle {
                 ..Default::default()
             },
         ];
-        
+
         Self { events }
     }
-    
+
     /// Get upcoming events from the mock
     pub async fn get_upcoming_events(&self) -> BotResult<Vec<CalendarEvent>> {
         Ok(self.events.clone())
     }
-    
+
     /// Simulate checking for new events
     pub async fn check_new_events(&self) -> BotResult<Vec<CalendarEvent>> {
         // In a real implementation, this would compare with previous events
         // Here we just return a subset of the events as "new"
         Ok(vec![self.events[0].clone()])
     }
-    
+
     /// Shutdown the mock
     #[allow(dead_code)]
     pub async fn shutdown(&self) -> BotResult<()> {
@@ -61,15 +61,15 @@ impl MockGoogleCalendarHandle {
 async fn test_google_calendar_mock() {
     // Create the mock
     let mock_handle = MockGoogleCalendarHandle::new();
-    
+
     // Get events from the mock
     let events = mock_handle.get_upcoming_events().await.unwrap();
-    
+
     // Verify events
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].id, "event1");
     assert_eq!(events[1].id, "event2");
-    
+
     // Check new events
     let new_events = mock_handle.check_new_events().await.unwrap();
     assert_eq!(new_events.len(), 1);
@@ -95,19 +95,19 @@ async fn test_calendar_with_config() {
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en-US".to_string(),
     }));
-    
+
     // Create a mock calendar handle
     let mock_handle = MockGoogleCalendarHandle::new();
-    
+
     // Test reading calendar ID from config
     let calendar_id = {
         let config_guard = config.read().await;
         config_guard.google_calendar_id.clone()
     };
-    
+
     assert_eq!(calendar_id, "test_calendar_id");
-    
+
     // Test getting events
     let events = mock_handle.get_upcoming_events().await.unwrap();
     assert!(!events.is_empty());
-} 
+}
