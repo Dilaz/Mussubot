@@ -309,7 +309,7 @@ fn validate_image_format(data: &[u8]) -> bool {
     // Check for common image format signatures
     match &data[0..4] {
         // JPEG signature (0xFF 0xD8 0xFF)
-        sig if sig.starts_with(&[0xFF, 0xD8, 0xFF]) => true,
+        [0xFF, 0xD8, 0xFF, ..] => true,
 
         // PNG signature (0x89 'P' 'N' 'G')
         [0x89, 0x50, 0x4E, 0x47] => true,
@@ -322,7 +322,7 @@ fn validate_image_format(data: &[u8]) -> bool {
 
         // WebP signature ('R' 'I' 'F' 'F' ... 'W' 'E' 'B' 'P')
         [0x52, 0x49, 0x46, 0x46]
-            if data.len() >= 12 && &data[8..12] == [0x57, 0x45, 0x42, 0x50] =>
+            if data.len() >= 12 && data[8..12] == [0x57, 0x45, 0x42, 0x50] =>
         {
             true
         }
