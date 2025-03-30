@@ -36,7 +36,8 @@ COPY assets/ ./assets/
 
 # Build the work_hours application
 RUN . /etc/environment && \
-    cargo build --release --bin work_hours --features web-interface
+    cargo build --release --bin work_hours --features web-interface && \
+    chmod +x /app/target/release/work_hours
 
 # Runtime stage
 FROM gcr.io/distroless/cc-debian12

@@ -18,8 +18,6 @@ spec:
       containers:
       - name: work-hours
         image: ${IMAGE_REPO}:${IMAGE_TAG}
-        command: ["/bin/sh", "-c"]
-        args: ["./work_hours"]
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

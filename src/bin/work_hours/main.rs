@@ -38,8 +38,6 @@ use crate::model::WorkHoursDb;
 
 #[derive(Clone)]
 pub struct AppState {
-    /// Directory where uploaded files are stored
-    pub upload_dir: String,
     /// Auth service for JWT operations
     pub auth_service: Arc<AuthService>,
     /// Database for work hours
@@ -69,12 +67,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         info!("Starting work hours web server");
 
-        // Setup app state
-        let upload_dir = std::env::var("UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string());
-
-        // Ensure upload directory exists
-        std::fs::create_dir_all(&upload_dir)?;
-
         let auth_config = auth::AuthConfig::default();
         info!(
             "Using admin credentials from environment: username={}",
@@ -103,7 +95,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let state = AppState {
-            upload_dir,
             auth_service: auth_service.clone(),
             db,
         };
