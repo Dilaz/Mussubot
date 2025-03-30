@@ -8,16 +8,13 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'k8s/mussubotti-deployment.yaml'
-      - 'k8s/work-hours-deployment.yaml'
       - 'Dockerfile'
-      - 'Dockerfile.work_hours'
       - '.github/workflows/mussubotti-deploy.yml'
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   BOT_IMAGE_NAME: ghcr.io/dilaz/mussubotti
-  WORK_HOURS_IMAGE_NAME: ghcr.io/dilaz/mussubotti-work-hours
   K3S_CONTEXT: default
 
 jobs:
@@ -72,7 +69,6 @@ jobs:
           name: mussubotti-binaries
           path: |
             target/release/mussubotti
-            target/release/work_hours
 
   build-and-push-images:
     needs: build-and-test
@@ -104,37 +100,15 @@ jobs:
             type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       
-      - name: Extract metadata (tags, labels) for Work Hours image
-        id: work_hours_meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ env.WORK_HOURS_IMAGE_NAME }}
-          tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-      
       - name: Build and push the Discord Bot Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.bot_meta.outputs.tags }}
           labels: ${{ steps.bot_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      - name: Build and push the Work Hours Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.work_hours
-          push: true
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          tags: ${{ steps.work_hours_meta.outputs.tags }}
-          labels: ${{ steps.work_hours_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           
@@ -167,7 +141,6 @@ jobs:
         run: |
           TAG=$(echo ${{ github.sha }} | cut -c1-7)
           BOT_IMAGE="${{ env.BOT_IMAGE_NAME }}:$TAG"
-          WORK_HOURS_IMAGE="${{ env.WORK_HOURS_IMAGE_NAME }}:$TAG"
           
           # Create namespace if it doesn't exist
           kubectl get namespace mussubot || kubectl create namespace mussubot
@@ -188,11 +161,6 @@ jobs:
           # Apply Discord bot deployment
           cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.BOT_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
           
-          # Apply Work Hours deployment if the yaml file exists
-          if [ -f k8s/work-hours-deployment.yaml ]; then
-            cat k8s/work-hours-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.WORK_HOURS_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
-          fi
-          
           # Create configmap if it doesn't exist
           if ! kubectl get configmap mussubotti-config -n mussubot &>/dev/null; then
             kubectl apply -f k8s/configmap.yaml
@@ -207,6 +175,3 @@ jobs:
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/mussubotti -n mussubot
-          if kubectl get deployment/work-hours -n mussubot &>/dev/null; then
-            kubectl rollout status deployment/work-hours -n mussubot
-          fi 
