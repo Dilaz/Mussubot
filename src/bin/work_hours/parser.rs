@@ -1,6 +1,6 @@
 use crate::model::{WorkDay, WorkDayExtraction, WorkSchedule};
 use base64::{self, engine::Engine};
-use chrono::NaiveDate;
+use chrono::{Datelike, Local, NaiveDate};
 use rig::completion::message::{Image, ImageMediaType};
 use rig::completion::{Chat, Message};
 use rig::message::ContentFormat;
@@ -21,7 +21,7 @@ Output the schedule as a JSON array where each object represents a single day. E
 }
 
 Follow these SUPER strict rules:
-1.  **Date Format:** The 'date' value must be in \"YYYY-MM-DD\" format. Use the year 2025 as indicated in the schedule title. Correctly map the day and month from the column headers (e.g., \"24.3.\" becomes \"2025-03-24\", \"1.4.\" becomes \"2025-04-01\", \"13.4.\" becomes \"2025-04-13\").
+1.  **Date Format:** The 'date' value must be in \"YYYY-MM-DD\" format. Use the year {YEAR} as indicated in the schedule title. Correctly map the day and month from the column headers (e.g., \"24.3.\" becomes \"2025-03-24\", \"1.4.\" becomes \"2025-04-01\", \"13.4.\" becomes \"2025-04-13\").
 2.  **Work Hours Value:** The 'work_hours' value must be the *exact string* found in the corresponding cell for that employee and date.
     *   If the cell contains a time range (e.g., \"7-15\", \"12-20.15\", \"8.35-16\"), use that exact string.
     *   If the cell contains a code (e.g., \"v\", \"x\", \"vp\", \"Toive\", \"Toive vp\", \"Paikalla\", \"Palkat\", \"Tst\", \"Koulutus\", \"lo\", \"mat\", \"vv\", \"VL\", \"S\"), use that exact code string as found.
@@ -54,9 +54,12 @@ pub async fn parse_schedule_image(
 
         // Initialize Gemini client with API key
         let gemini_client = GeminiClient::new(&api_key);
+        let year = Local::now().year();
 
         // Replace {NAME} placeholder in prompt with actual employee name
-        let prompt = PROMPT.replace("{NAME}", employee_name);
+        let prompt = PROMPT
+            .replace("{NAME}", employee_name)
+            .replace("{YEAR}", &year.to_string());
 
         // Base64 encode the image
         let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);

@@ -45,7 +45,3 @@ COPY --from=builder /app/target/release/mussubotti /app/mussubotti
 
 # Set the entrypoint
 ENTRYPOINT ["/app/mussubotti"]
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "ps aux | grep mussubotti | grep -v grep"]

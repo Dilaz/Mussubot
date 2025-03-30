@@ -53,7 +53,3 @@ EXPOSE 3000
 
 # Set the entrypoint
 ENTRYPOINT ["/app/work_hours"]
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "ps aux | grep work_hours | grep -v grep"]

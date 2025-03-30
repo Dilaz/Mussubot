@@ -38,19 +38,3 @@ spec:
           requests:
             memory: "128Mi"
             cpu: "100m"
-        livenessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - ps aux | grep mussubotti | grep -v grep
-          initialDelaySeconds: 10
-          periodSeconds: 30
-        readinessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - ps aux | grep mussubotti | grep -v grep
-          initialDelaySeconds: 5
-          periodSeconds: 10 
