@@ -48,6 +48,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/work_hours /app/work_hours
 # Copy assets to the runtime container
 COPY --from=builder /app/assets/ /app/assets/
+COPY /locales /app/locales
 
 # Expose the port for the web server
 EXPOSE 3000
