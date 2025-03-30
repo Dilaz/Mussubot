@@ -13,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/dilaz/mussubotti
+  IMAGE_NAME: ghcr.io/dilaz/mussubotti-work-hours
   K3S_CONTEXT: default
 
 jobs:
@@ -36,24 +36,13 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-      
       - name: Build and push the Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/dilaz/mussubotti-work-hours:${{ github.sha }},ghcr.io/dilaz/mussubotti-work-hours:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           

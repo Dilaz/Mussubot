@@ -89,16 +89,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Discord Bot image
-        id: bot_meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ env.BOT_IMAGE_NAME }}
-          tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       
       - name: Build and push the Discord Bot Docker image
         uses: docker/build-push-action@v5
@@ -107,8 +97,7 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.bot_meta.outputs.tags }}
-          labels: ${{ steps.bot_meta.outputs.labels }}
+          tags: ghcr.io/dilaz/mussubotti:${{ github.sha }},ghcr.io/dilaz/mussubotti:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           
