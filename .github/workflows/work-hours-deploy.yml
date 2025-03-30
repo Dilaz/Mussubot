@@ -33,29 +33,28 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: dilaz
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push the Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile.work_hours
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/dilaz/mussubotti-work-hours:${{ github.sha }},ghcr.io/dilaz/mussubotti-work-hours:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          
-      - name: Extract short SHA
-        id: sha
-        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-  deploy-work-hours:
+  deploy:
+    name: Deploy
     needs: build-and-push-image
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout source code
+        uses: actions/checkout@v3
       
       - name: Setup Tailscale
         uses: tailscale/github-action@main
@@ -71,15 +70,11 @@ jobs:
           k8s-url: ${{ secrets.KUBERNETES_HOST }}
           k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
       
-      - name: Deploy work-hours
+      - name: Create namespace if it doesn't exist
+        run: kubectl get namespace mussubot || kubectl create namespace mussubot
+      
+      - name: Create k8s secrets if they don't exist
         run: |
-          TAG=$(echo ${{ github.sha }} | cut -c1-7)
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
-          
-          # Create namespace if it doesn't exist
-          kubectl get namespace mussubot || kubectl create namespace mussubot
-          
-          # Create k8s secrets if they don't exist
           if ! kubectl get secret mussubotti-secrets -n mussubot &>/dev/null; then
             kubectl create secret generic mussubotti-secrets \
               -n mussubot \
@@ -92,17 +87,44 @@ jobs:
               --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }}
           fi
           
-          # Apply work-hours deployment
-          cat k8s/work-hours-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" | kubectl apply -f -
-          
-          # Apply work-hours service and ingress
-          cat k8s/work-hours-service-ingress.yaml | sed "s|\${WORK_HOURS_DOMAIN}|${{ secrets.WORK_HOURS_DOMAIN }}|g" | kubectl apply -f -
-          
-          # Create configmap if it doesn't exist
+      - name: Create configmap if it doesn't exist
+        run: |
           if ! kubectl get configmap mussubotti-config -n mussubot &>/dev/null; then
             kubectl apply -f k8s/configmap.yaml
           fi
       
-      - name: Verify deployment
+      - name: Prepare manifests
         run: |
-          kubectl rollout status deployment/work-hours -n mussubot 
+          TAG=$(echo ${{ github.sha }} | cut -c1-7)
+          mkdir -p prepared-manifests
+          cat k8s/work-hours-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" > prepared-manifests/deployment.yaml
+          cat k8s/work-hours-service-ingress.yaml | sed "s|\${WORK_HOURS_DOMAIN}|${{ secrets.WORK_HOURS_DOMAIN }}|g" > prepared-manifests/service-ingress.yaml
+      
+      - name: Deploy to the Kubernetes cluster
+        uses: azure/k8s-deploy@v4
+        with:
+          namespace: mussubot
+          action: deploy
+          strategy: basic
+          manifests: |
+            prepared-manifests/deployment.yaml
+            prepared-manifests/service-ingress.yaml
+          images: |
+            ghcr.io/dilaz/mussubotti-work-hours:${{ github.sha }}
+  
+  rollback:
+    if: failure()
+    name: Rollback
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set the Kubernetes context
+        uses: azure/k8s-set-context@v2
+        with:
+          method: service-account
+          k8s-url: ${{ secrets.KUBERNETES_HOST }}
+          k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
+      
+      - name: Rollback
+        run: |
+          kubectl rollout undo deployment/work-hours -n mussubot 
