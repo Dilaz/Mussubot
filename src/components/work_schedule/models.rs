@@ -23,14 +23,16 @@ impl WorkScheduleEntry {
     /// Format the schedule as a human-readable string
     pub fn format(&self) -> String {
         if self.is_day_off {
-            return "Day off".to_string();
+            return t!("work_schedule_day_off").to_string();
         }
 
         match (self.start_time.as_ref(), self.end_time.as_ref()) {
-            (Some(start), Some(end)) => format!("{} - {}", start, end),
-            (Some(start), None) => format!("Starting at {}", start),
-            (None, Some(end)) => format!("Ending at {}", end),
-            (None, None) => "No scheduled hours".to_string(),
+            (Some(start), Some(end)) => {
+                t!("work_schedule_time_range", start = start, end = end).to_string()
+            }
+            (Some(start), None) => t!("work_schedule_starting_at", time = start).to_string(),
+            (None, Some(end)) => t!("work_schedule_ending_at", time = end).to_string(),
+            (None, None) => t!("work_schedule_no_hours").to_string(),
         }
     }
 }

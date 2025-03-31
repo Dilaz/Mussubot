@@ -31,6 +31,9 @@ RUN mkdir -p src && \
 # Now copy the actual source code
 COPY src/ ./src/
 
+# Copy locales
+COPY locales/ ./locales/
+
 # Build the main application
 RUN . /etc/environment && \
     cargo build --release --bin mussubotti
@@ -42,7 +45,6 @@ WORKDIR /app
 
 # Copy the compiled binary from builder
 COPY --from=builder /app/target/release/mussubotti /app/mussubotti
-COPY /locales /app/locales
 
 # Set the entrypoint
 ENTRYPOINT ["/app/mussubotti"]
