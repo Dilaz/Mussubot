@@ -19,9 +19,9 @@
   "calendar_error_fetching": "Virhe haettaessa tapahtumia: %{error}",
   "calendar_next_week": "Ensi viikko",
 
-  "work_schedule_daily_greeting": "Huomenta! Tässä on tämän päivän työvuorot:",
-  "work_schedule_daily_title": "Tämän päivän työvuorot (%{date})",
-  "work_schedule_daily_no_schedules": "Tälle päivälle (%{date}) ei ole asetettu työvuoroja.",
+  "work_schedule_daily_greeting": "Huomenta! Tässä on tämän päivän ja huomisen työvuorot:",
+  "work_schedule_daily_title": "Työvuorot (%{date})",
+  "work_schedule_daily_no_schedules": "Päivälle %{date} ei ole asetettu työvuoroja.",
   "work_schedule_weekly_title": "Viikon työvuorot (%{start_date} - %{end_date})",
   "work_schedule_weekly_greeting": "Tässä on tämän viikon työvuorot:",
   "work_schedule_employee_title": "Työvuorot henkilölle %{employee}",
@@ -40,6 +40,8 @@
   "work_schedule_ending_at": "Päättyen %{time}",
   "work_schedule_time_range": "%{start} - %{end}",
   "work_schedule_all_day_off": "Kaikilla on tänään vapaapäivä! Aika juhlia! 🎉",
+  "work_schedule_today_section": "Tämän päivän työvuorot",
+  "work_schedule_tomorrow_section": "Huomisen työvuorot (%{date})",
 
   "day_monday": "Maanantai",
   "day_tuesday": "Tiistai",

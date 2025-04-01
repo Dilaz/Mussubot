@@ -19,9 +19,9 @@
   "calendar_error_fetching": "Error fetching events: %{error}",
   "calendar_next_week": "Next Week",
 
-  "work_schedule_daily_greeting": "Good morning! Here's today's work schedule:",
-  "work_schedule_daily_title": "Today's Work Schedule (%{date})",
-  "work_schedule_daily_no_schedules": "No work schedules are set for today (%{date}).",
+  "work_schedule_daily_greeting": "Good morning! Here's today's and tomorrow's work schedules:",
+  "work_schedule_daily_title": "Work Schedules (%{date})",
+  "work_schedule_daily_no_schedules": "No work schedules are set for %{date}.",
   "work_schedule_weekly_title": "Weekly Work Schedule (%{start_date} to %{end_date})",
   "work_schedule_weekly_greeting": "Here's the work schedule for this week:",
   "work_schedule_employee_title": "Work Schedule for %{employee}",
@@ -40,6 +40,8 @@
   "work_schedule_ending_at": "Ending at %{time}",
   "work_schedule_time_range": "%{start} - %{end}",
   "work_schedule_all_day_off": "Everyone has a day off today! Time to celebrate! 🎉",
+  "work_schedule_today_section": "Today's Schedule",
+  "work_schedule_tomorrow_section": "Tomorrow's Schedule (%{date})",
 
   "day_monday": "Monday",
   "day_tuesday": "Tuesday",
