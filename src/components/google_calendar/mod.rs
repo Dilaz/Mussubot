@@ -11,12 +11,12 @@ pub use handle::GoogleCalendarHandle;
 use crate::config::Config;
 use crate::error::BotResult;
 use async_trait::async_trait;
+use lazy_static::lazy_static;
 use poise::serenity_prelude as serenity;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
-use lazy_static::lazy_static;
 
 use super::google_calendar::scheduler::start_scheduler;
 use super::redis_service::RedisActorHandle;
