@@ -1825,6 +1825,7 @@ dependencies = [
  "hyper 1.6.0",
  "hyper-rustls 0.27.5",
  "jsonwebtoken",
+ "lazy_static",
  "miette",
  "multer",
  "poise",

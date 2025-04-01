@@ -3,6 +3,7 @@ mod handle;
 pub mod models;
 mod notifications;
 mod scheduler;
+pub mod time;
 
 pub use handle::WorkScheduleHandle;
 
@@ -10,11 +11,17 @@ use crate::config::Config;
 use crate::error::BotResult;
 use async_trait::async_trait;
 use poise::serenity_prelude as serenity;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
+use tracing::{info, warn};
+use lazy_static::lazy_static;
 use super::redis_service::RedisActorHandle;
 use super::work_schedule::scheduler::start_scheduler;
+
+lazy_static! {
+    static ref SCHEDULER_STARTED: AtomicBool = AtomicBool::new(false);
+}
 
 /// Work Schedule component for tracking employee work hours
 #[derive(Default)]
@@ -65,8 +72,13 @@ impl super::Component for WorkSchedule {
         let handle = handle_lock.as_ref().unwrap().clone();
         let ctx = Arc::new(ctx.clone());
 
-        // Start the notification scheduler
-        start_scheduler(ctx, config, handle).await;
+        // Start the notification scheduler only if it hasn't been started yet
+        if !SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
+            info!("Starting Work Schedule notification scheduler");
+            start_scheduler(ctx, config, handle).await;
+        } else {
+            warn!("Work Schedule scheduler is already running, skipping initialization");
+        }
 
         Ok(())
     }

@@ -94,6 +94,7 @@ async fn test_calendar_with_config() {
         daily_notification_time: "06:00".to_string(),
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en-US".to_string(),
+        new_events_check_interval: 300,
     }));
 
     // Create a mock calendar handle

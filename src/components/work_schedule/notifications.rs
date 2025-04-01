@@ -49,8 +49,7 @@ pub async fn send_daily_notification(
         // A happy dancing GIF
         embed = embed
             .description(t!("work_schedule_all_day_off"))
-            .image("https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdG9nM3J1YnA1NHcxc2cwcmE5bjNqOWF1eHZsY3h3MDBxbDl5aGdldiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/DKnMqdm9i980E/giphy.gif");
-        // Dancing happy people GIF
+            .image("https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExYnp2ZzRxZ2o3MDJ3Ymtrbm8wa25nZDA5a2N5a3V6eDY4cXBqMHhvaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Xf8D9Qf8OCKnMvNnru/giphy.gif");
     }
 
     // Format is: "Employee: 9:00 - 17:00"

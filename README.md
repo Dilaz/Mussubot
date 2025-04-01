@@ -27,7 +27,7 @@ A modular Discord bot that integrates with Google Calendar to send notifications
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/mussubot.git
+   git clone https://github.com/dilaz/Mussubot.git
    cd mussubot
    ```
 
@@ -98,20 +98,27 @@ RUST_LOG=debug,serenity=info,poise=info
 # Default bot locale (default: en-US)
 BOT_LOCALE=fi-FI
 
-# Bot activity status (default: "Leikkii lankakerällä")
-BOT_ACTIVITY=Leikkii lankakerällä
+# Bot activity status (default: "DOTA2")
+BOT_ACTIVITY=DOTA2
 
 # Gemini AI Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-pro-exp-03-25
 
 # Default employee name for work hours tracking
-DEFAULT_EMPLOYEE_NAME=Veera
+DEFAULT_EMPLOYEE_NAME=Brian
 
 # Redis connection URL
 # Use redis:6379 when running with docker-compose
 # Use 127.0.0.1:6379 when running locally
 REDIS_URL=redis://redis:6379
+
+# Notification times in 24h format (HH:MM)
+DAILY_NOTIFICATION_TIME=06:00
+WEEKLY_NOTIFICATION_TIME=06:00
+
+# Calendar events checking interval in seconds (default: 300)
+NEW_EVENTS_CHECK_INTERVAL=300
 ```
 
 ## Logging
@@ -240,4 +247,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - [Serenity](https://github.com/serenity-rs/serenity) - Discord API library for Rust
-- [Poise](https://github.com/serenity-rs/poise) - Framework for Serenity 
+- [Poise](https://github.com/serenity-rs/poise) - Framework for Serenity
+- [Rig](https://rig.rs) - Rust LLM lib

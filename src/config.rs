@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 /// Default activity text for the bot
-pub const DEFAULT_ACTIVITY: &str = "Leikkii lankakerällä";
+pub const DEFAULT_ACTIVITY: &str = "DOTA2";
 
 /// Main configuration structure for the bot
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +38,8 @@ pub struct Config {
     pub weekly_notification_time: String,
     /// Bot locale
     pub bot_locale: String,
+    /// Interval in seconds for checking new calendar events (default: 300)
+    pub new_events_check_interval: u64,
 }
 
 impl Config {
@@ -60,6 +62,12 @@ impl Config {
             env::var("DAILY_NOTIFICATION_TIME").unwrap_or_else(|_| "06:00".to_string());
         let weekly_notification_time =
             env::var("WEEKLY_NOTIFICATION_TIME").unwrap_or_else(|_| "06:00".to_string());
+
+        // New events check interval (default: 5 minutes/300 seconds)
+        let new_events_check_interval = env::var("NEW_EVENTS_CHECK_INTERVAL")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(300);
 
         // Parse numeric values
         let calendar_channel_id = env::var("CALENDAR_CHANNEL_ID")
@@ -113,6 +121,7 @@ impl Config {
             daily_notification_time,
             weekly_notification_time,
             bot_locale,
+            new_events_check_interval,
         })
     }
 

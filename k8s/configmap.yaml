@@ -5,7 +5,7 @@ metadata:
   namespace: mussubot
 data:
   TIMEZONE: "Europe/Helsinki"
-  BOT_ACTIVITY: "Leikkii lankakerällä"
+  BOT_ACTIVITY: "DOTA2"
   CALENDAR_CHANNEL_ID: ""
   GUILD_ID: ""
   REDIS_URL: "redis://redis-master:6379"

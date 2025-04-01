@@ -23,6 +23,7 @@ async fn test_config_loads() {
         daily_notification_time: "06:00".to_string(),
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en".to_string(),
+        new_events_check_interval: 300,
     };
 
     assert_eq!(config.redis_url, "redis://127.0.0.1:6379");
@@ -103,6 +104,7 @@ async fn test_config_from_env() {
         daily_notification_time: "06:00".to_string(),
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en".to_string(),
+        new_events_check_interval: 300,
     }));
 
     // Test reading from the config
@@ -225,6 +227,7 @@ async fn test_component_initialization_order() {
         daily_notification_time: "06:00".to_string(),
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en".to_string(),
+        new_events_check_interval: 300,
     }));
 
     // Create component manager

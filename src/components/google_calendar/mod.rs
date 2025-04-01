@@ -12,11 +12,18 @@ use crate::config::Config;
 use crate::error::BotResult;
 use async_trait::async_trait;
 use poise::serenity_prelude as serenity;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{info, warn};
+use lazy_static::lazy_static;
 
 use super::google_calendar::scheduler::start_scheduler;
 use super::redis_service::RedisActorHandle;
+
+lazy_static! {
+    static ref SCHEDULER_STARTED: AtomicBool = AtomicBool::new(false);
+}
 
 /// Google Calendar component for integration with Discord
 #[derive(Default)]
@@ -67,8 +74,13 @@ impl super::Component for GoogleCalendar {
         let handle = handle_lock.as_ref().unwrap().clone();
         let ctx = Arc::new(ctx.clone());
 
-        // Start the notification scheduler
-        start_scheduler(ctx, config, handle).await;
+        // Start the notification scheduler only if it hasn't been started yet
+        if !SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
+            info!("Starting Google Calendar notification scheduler");
+            start_scheduler(ctx, config, handle).await;
+        } else {
+            warn!("Google Calendar scheduler is already running, skipping initialization");
+        }
 
         Ok(())
     }
