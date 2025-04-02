@@ -1,20 +1,7 @@
 use super::models::CalendarEvent;
 use crate::error::{google_calendar_error, BotResult};
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, TimeZone};
-
-/// Parse time string in HH:MM format
-pub fn parse_time(time_str: &str) -> Option<(u32, u32)> {
-    let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() != 2 {
-        return None;
-    }
-    let hour = parts[0].parse::<u32>().ok()?;
-    let minute = parts[1].parse::<u32>().ok()?;
-    if hour > 23 || minute > 59 {
-        return None;
-    }
-    Some((hour, minute))
-}
+use crate::utils::time;
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone};
 
 /// Calculate next notification time
 pub fn next_notification_time(
@@ -22,36 +9,10 @@ pub fn next_notification_time(
     target_time: &str,
     is_weekly: bool,
 ) -> BotResult<DateTime<Local>> {
-    let (target_hour, target_minute) =
-        parse_time(target_time).ok_or_else(|| google_calendar_error("Invalid time format"))?;
+    let result = time::next_notification_time(current_time, target_time, is_weekly)
+        .ok_or_else(|| google_calendar_error("Failed to calculate next notification time"))?;
 
-    let next = current_time
-        .date_naive()
-        .and_hms_opt(target_hour, target_minute, 0)
-        .ok_or_else(|| google_calendar_error("Failed to create datetime"))?;
-    let mut next = match Local.from_local_datetime(&next) {
-        chrono::LocalResult::Single(dt) => dt,
-        chrono::LocalResult::Ambiguous(_, _) => {
-            return Err(google_calendar_error("Ambiguous local time"));
-        }
-        chrono::LocalResult::None => {
-            return Err(google_calendar_error("Invalid local time"));
-        }
-    };
-
-    // If we've already passed the target time today, move to tomorrow
-    if next <= current_time {
-        next += Duration::days(1);
-    }
-
-    // For weekly notifications, ensure it's on Monday
-    if is_weekly {
-        while next.weekday() != chrono::Weekday::Mon {
-            next += Duration::days(1);
-        }
-    }
-
-    Ok(next)
+    Ok(result)
 }
 
 /// Get event start time as DateTime

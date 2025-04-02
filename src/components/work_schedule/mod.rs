@@ -8,16 +8,17 @@ pub mod time;
 pub use handle::WorkScheduleHandle;
 
 use super::redis_service::RedisActorHandle;
-use super::work_schedule::scheduler::start_scheduler;
+use super::work_schedule::scheduler::WorkScheduleScheduler;
 use crate::config::Config;
 use crate::error::BotResult;
+use crate::utils::scheduler::Scheduler;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use poise::serenity_prelude as serenity;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 lazy_static! {
     static ref SCHEDULER_STARTED: AtomicBool = AtomicBool::new(false);
@@ -75,7 +76,9 @@ impl super::Component for WorkSchedule {
         // Start the notification scheduler only if it hasn't been started yet
         if !SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
             info!("Starting Work Schedule notification scheduler");
-            start_scheduler(ctx, config, handle).await;
+            if let Err(e) = WorkScheduleScheduler::start(ctx, config, handle).await {
+                error!("Failed to start Work Schedule scheduler: {}", e);
+            }
         } else {
             warn!("Work Schedule scheduler is already running, skipping initialization");
         }
@@ -89,6 +92,11 @@ impl super::Component for WorkSchedule {
         if let Some(handle) = &*handle_lock {
             handle.shutdown().await?;
         }
+
+        // Stop the scheduler
+        let scheduler = WorkScheduleScheduler;
+        scheduler.stop().await?;
+
         Ok(())
     }
 

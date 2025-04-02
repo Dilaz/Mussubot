@@ -16,10 +16,11 @@ use poise::serenity_prelude as serenity;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
-use super::google_calendar::scheduler::start_scheduler;
+use super::google_calendar::scheduler::GoogleCalendarScheduler;
 use super::redis_service::RedisActorHandle;
+use crate::utils::scheduler::Scheduler;
 
 lazy_static! {
     static ref SCHEDULER_STARTED: AtomicBool = AtomicBool::new(false);
@@ -77,7 +78,9 @@ impl super::Component for GoogleCalendar {
         // Start the notification scheduler only if it hasn't been started yet
         if !SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
             info!("Starting Google Calendar notification scheduler");
-            start_scheduler(ctx, config, handle).await;
+            if let Err(e) = GoogleCalendarScheduler::start(ctx, config, handle).await {
+                error!("Failed to start Google Calendar scheduler: {}", e);
+            }
         } else {
             warn!("Google Calendar scheduler is already running, skipping initialization");
         }
@@ -91,6 +94,11 @@ impl super::Component for GoogleCalendar {
         if let Some(handle) = &*handle_lock {
             handle.shutdown().await?;
         }
+
+        // Stop the scheduler
+        let scheduler = GoogleCalendarScheduler;
+        scheduler.stop().await?;
+
         Ok(())
     }
 
