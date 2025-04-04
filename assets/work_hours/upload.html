@@ -12,6 +12,34 @@
                 extend: {}
             }
         }
+
+        // Function to calculate default dates when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get tomorrow's date
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            // Find the next Monday from tomorrow
+            const startDate = new Date(tomorrow);
+            const daysUntilMonday = (8 - startDate.getDay()) % 7;
+            startDate.setDate(startDate.getDate() + daysUntilMonday);
+            
+            // Calculate end date (3 weeks from start date)
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (21 - 1)); // 21 days (3 weeks) minus 1 to include start day
+            
+            // Format dates as YYYY-MM-DD for the input fields
+            document.getElementById('start_date').value = formatDate(startDate);
+            document.getElementById('end_date').value = formatDate(endDate);
+        });
+        
+        // Helper function to format date as YYYY-MM-DD
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
     </script>
 </head>
 <body class="bg-gray-900 min-h-screen text-gray-200">
@@ -30,6 +58,22 @@
                     <label for="name" class="block text-sm font-medium text-gray-300">Employee Name</label>
                     <input type="text" id="name" name="name" required 
                         class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white">
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-300">Start Date</label>
+                        <input type="date" id="start_date" name="start_date" required 
+                            class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white">
+                        <p class="mt-1 text-xs text-gray-500">Defaults to next Monday from tomorrow</p>
+                    </div>
+                    
+                    <div>
+                        <label for="end_date" class="block text-sm font-medium text-gray-300">End Date</label>
+                        <input type="date" id="end_date" name="end_date" required 
+                            class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white">
+                        <p class="mt-1 text-xs text-gray-500">Defaults to 3 weeks from start date</p>
+                    </div>
                 </div>
                 
                 <div>

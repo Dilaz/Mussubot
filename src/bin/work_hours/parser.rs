@@ -1,6 +1,6 @@
 use crate::model::{WorkDay, WorkDayExtraction, WorkSchedule};
 use base64::{self, engine::Engine};
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, Duration, Local, NaiveDate};
 use rig::completion::message::{Image, ImageMediaType};
 use rig::completion::{Chat, Message};
 use rig::message::ContentFormat;
@@ -9,36 +9,50 @@ use serde_json::from_str;
 use std::env;
 use tracing::{error, info, warn};
 
-/// Prompt for the Gemini agent to extract the work schedule from the image.
-const PROMPT: &str = "Analyze the provided image, which is a work schedule titled \"Työvuorot ajalle **DATE_RANGE**\".
+/// Prompt for the Gemini agent to extract the work schedule from the image
+const PROMPT: &str = "Analyze the provided image, which is a work schedule.
 
-Your task is to extract the complete work schedule for the employee named **{NAME}** covering the entire period shown (**DATE_RANGE**).
+First, identify the following details from the image:
+1.  The **employee name** provided: **{NAME}**
+2.  The **full date range** specified in the title (e.g., \"24.3.-13.4.2025\").
+3.  The **year** from the date range.
+4.  The **start date** and **end date** from the range.
+5.  All the individual **day/month column headers** visible within that date range (e.g., \"{DAY1}\", \"{DAY2}\", ...).
 
-Output the schedule as a JSON array where each object represents a single day. Each object must have the following exact structure:
+Your main task is to extract the complete work schedule for the employee **{NAME}** covering the date range from **{START_DATE}** to **{END_DATE}** (weeks {WEEK_NUMBERS}).
+
+Output the schedule as a JSON array where each object represents a single day within the identified date range. Each object must have the following exact structure:
 {
   \"date\": \"YYYY-MM-DD\",
   \"work_hours\": \"VALUE_FROM_CELL\"
 }
 
-Follow these SUPER strict rules:
-1.  **Date Format:** The 'date' value must be in \"YYYY-MM-DD\" format. Use the year {YEAR} as indicated in the schedule title. Correctly map the day and month from the column headers (e.g., \"24.3.\" becomes \"2025-03-24\", \"1.4.\" becomes \"2025-04-01\", \"13.4.\" becomes \"2025-04-13\").
-2.  **Work Hours Value:** The 'work_hours' value must be the *exact string* found in the corresponding cell for that employee and date.
-    *   If the cell contains a time range (e.g., \"7-15\", \"12-20.15\", \"8.35-16\"), use that exact string.
-    *   If the cell contains a code (e.g., \"v\", \"x\", \"vp\", \"Toive\", \"Toive vp\", \"Paikalla\", \"Palkat\", \"Tst\", \"Koulutus\", \"lo\", \"mat\", \"vv\", \"VL\", \"S\"), use that exact code string as found.
-    *   If a cell contains a time with a comma like \"7,30-16\", **normalize the comma to a period** and use that string: \"7.30-16\". Use periods consistently for decimal points in times (e.g., \"20.15\").
-    *   If the cell for a specific date in the employee's row is **completely empty** (contains no text or code), use an empty string `\"\"` for the 'work_hours' value. Be extremely careful identifying truly empty cells, especially if there are multiple consecutive ones at the start or end of the row segment for a week.
-3.  **Completeness:** Ensure you include one JSON object for *every single date* from 2025-03-24 to 2025-04-13 inclusive for the specified employee. There should be exactly 21 objects in the final array.
-4.  **Accuracy:** Meticulously check the employee's specific row and the corresponding date column for each entry. Cross-reference the date column headers (Ma, Ti, Ke, To, Pe, La, Su) and the dates (24.3. ... 13.4.) across the weeks (vko 13, vko 14, vko 15). Accuracy in matching the cell content to the date is paramount.
+Follow these SUPER strict rules for generating the JSON output:
+1.  **Date Format:** The 'date' value must be in \"YYYY-MM-DD\" format. Use the **year identified from the image title**. Correctly map the day and month from each column header identified (e.g., \"{DAY1}\" becomes \"{YEAR}-{MONTH1}-{DATE1}\", \"{DAY2}\" becomes \"{YEAR}-{MONTH2}-{DATE2}\").
+2.  **Work Hours Value:** The 'work_hours' value must be the **primary text content** found in the specific cell corresponding to the employee **{NAME}** and the specific date column.
+    *   If the cell contains a time range (e.g., \"7-15\", \"12-20.30\", \"8.35-16\"), use that exact string. Normalize commas in times to periods (e.g., \"7,30-15.30\" becomes \"7.30-15.30\").
+    *   If the cell contains a code (e.g., \"v\", \"x\", \"vp\", \"vv\", \"VL\", \"S\", \"tst\"), use that exact code string.
+    *   If the cell contains descriptive text (e.g., \"Toive\", \"Pai-kalla\", \"kuorma\"), use that exact text. If the text spans multiple lines within the cell (like \"Pai-\" above \"kalla\"), combine them into a single representative string (e.g., \"Pai-kalla\"). If it's like \"Toive\" above \"vp\", combine as \"Toive vp\".
+    *   **Crucially:** Some cells contain both a primary entry (time/code/text) *and* a separate numerical value below it (often representing hours like '8', '7.5', '8.25'). **Use only the primary entry (time/code/text) as the 'work_hours' value.** Ignore the separate numerical value at the bottom *unless* it is the *only* content in that cell.
+    *   If the cell for a specific date in the employee's row is **completely empty** (contains no text, code, or number), use an empty string `\"\"` for the 'work_hours' value.
+3.  **Completeness:** Ensure you generate one JSON object for **every single date column header identified** within the start and end dates provided ({START_DATE} to {END_DATE}). The total number of objects in the array must match the number of days shown in the schedule grid for the specified range.
+4.  **Accuracy:** Meticulously map the employee's specific row ({NAME}) to the correct date column using the day/month headers (e.g., \"{DAY1}\", \"{DAY2}\", etc.) across all the weeks shown (e.g., {WEEK_EXAMPLES}). Accuracy in matching the cell content to the correct date is paramount.
 
-Provide **only** the JSON array as the output. Do not include any introductory text, explanations, markdown formatting (`json`), or comments before or after the JSON data.";
+Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, list of identified details, markdown formatting (`json`), or comments before or after the JSON data.";
 
 pub async fn parse_schedule_image(
     employee_name: &str,
     image_data: &[u8],
+    start_date: Option<&str>,
+    end_date: Option<&str>,
 ) -> Result<WorkSchedule, String> {
     // Log the parsing action
     info!("Parsing schedule image for employee: {}", employee_name);
     info!("Image size: {} bytes", image_data.len());
+
+    if let (Some(start), Some(end)) = (start_date, end_date) {
+        info!("Date range: {} to {}", start, end);
+    }
 
     #[cfg(feature = "web-interface")]
     {
@@ -56,10 +70,85 @@ pub async fn parse_schedule_image(
         let gemini_client = GeminiClient::new(&api_key);
         let year = Local::now().year();
 
-        // Replace {NAME} placeholder in prompt with actual employee name
+        // Calculate default dates if not provided
+        let (start_date_str, end_date_str) = match (start_date, end_date) {
+            (Some(start), Some(end)) => (start.to_string(), end.to_string()),
+            _ => {
+                // Get tomorrow's date
+                let tomorrow = Local::now().date_naive() + Duration::days(1);
+
+                // Find the next Monday from tomorrow
+                let days_until_monday = (8 - tomorrow.weekday().num_days_from_monday()) % 7;
+                let start = tomorrow + Duration::days(days_until_monday as i64);
+
+                // Calculate end date (3 weeks from start date)
+                let end = start + Duration::days(21 - 1);
+
+                (
+                    start.format("%Y-%m-%d").to_string(),
+                    end.format("%Y-%m-%d").to_string(),
+                )
+            }
+        };
+
+        // Parse the start and end dates
+        let start_date_obj = NaiveDate::parse_from_str(&start_date_str, "%Y-%m-%d")
+            .map_err(|_| "Invalid start date format".to_string())?;
+        let end_date_obj = NaiveDate::parse_from_str(&end_date_str, "%Y-%m-%d")
+            .map_err(|_| "Invalid end date format".to_string())?;
+
+        // Calculate week numbers
+        let start_week = start_date_obj.iso_week().week();
+        let end_week = end_date_obj.iso_week().week();
+
+        // Create week numbers string (e.g., "10, 11, 12" or "10-12")
+        let week_numbers = if start_week == end_week {
+            format!("{}", start_week)
+        } else if start_week + 1 == end_week {
+            format!("{}, {}", start_week, end_week)
+        } else {
+            format!("{}-{}", start_week, end_week)
+        };
+
+        // Generate week examples (e.g., "vko 10, vko 11, vko 12")
+        let mut week_examples = String::new();
+        for week in start_week..=end_week {
+            if !week_examples.is_empty() {
+                week_examples.push_str(", ");
+            }
+            week_examples.push_str(&format!("vko {}", week));
+        }
+
+        // Format the first day (usually Monday)
+        let day1 = format!("Ma {}.{}.", start_date_obj.day(), start_date_obj.month());
+
+        // Format the second day (usually Tuesday)
+        let day2 = format!(
+            "Ti {}.{}.",
+            (start_date_obj + Duration::days(1)).day(),
+            (start_date_obj + Duration::days(1)).month()
+        );
+
+        // Format for example dates in prompt
+        let month1 = format!("{:02}", start_date_obj.month());
+        let date1 = format!("{:02}", start_date_obj.day());
+        let month2 = format!("{:02}", (start_date_obj + Duration::days(1)).month());
+        let date2 = format!("{:02}", (start_date_obj + Duration::days(1)).day());
+
+        // Replace placeholders in prompt with actual values
         let prompt = PROMPT
             .replace("{NAME}", employee_name)
-            .replace("{YEAR}", &year.to_string());
+            .replace("{YEAR}", &year.to_string())
+            .replace("{START_DATE}", &start_date_str)
+            .replace("{END_DATE}", &end_date_str)
+            .replace("{WEEK_NUMBERS}", &week_numbers)
+            .replace("{WEEK_EXAMPLES}", &week_examples)
+            .replace("{DAY1}", &day1)
+            .replace("{DAY2}", &day2)
+            .replace("{MONTH1}", &month1)
+            .replace("{DATE1}", &date1)
+            .replace("{MONTH2}", &month2)
+            .replace("{DATE2}", &date2);
 
         // Base64 encode the image
         let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);

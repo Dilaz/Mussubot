@@ -194,6 +194,8 @@ pub async fn upload_handler(
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut name = None;
     let mut schedule_file = None;
+    let mut start_date = None;
+    let mut end_date = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -209,6 +211,14 @@ pub async fn upload_handler(
         } else if field_name == "schedule_file" {
             let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
             schedule_file = Some(data);
+        } else if field_name == "start_date" {
+            if let Ok(value) = field.text().await {
+                start_date = Some(value);
+            }
+        } else if field_name == "end_date" {
+            if let Ok(value) = field.text().await {
+                end_date = Some(value);
+            }
         }
     }
 
@@ -241,6 +251,29 @@ pub async fn upload_handler(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // Validate date formats if provided
+    if let Some(ref date) = start_date {
+        if !is_valid_date_format(date) {
+            error!("Invalid start date format: {}", date);
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    if let Some(ref date) = end_date {
+        if !is_valid_date_format(date) {
+            error!("Invalid end date format: {}", date);
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    // Ensure end date is after start date if both are provided
+    if let (Some(ref start), Some(ref end)) = (&start_date, &end_date) {
+        if end < start {
+            error!("End date cannot be before start date");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     // Clone name for logging
     let name_for_log = name_val.clone();
 
@@ -266,8 +299,15 @@ pub async fn upload_handler(
             return Err(StatusCode::BAD_REQUEST);
         }
 
-        // Parse the schedule
-        match parse_schedule_image(&name_val, &file_data).await {
+        // Parse the schedule with date range
+        match parse_schedule_image(
+            &name_val,
+            &file_data,
+            start_date.as_deref(),
+            end_date.as_deref(),
+        )
+        .await
+        {
             Ok(schedule) => {
                 // Store the schedule
                 match state.db.set_schedule(&name_val, &schedule).await {
@@ -295,9 +335,35 @@ pub async fn upload_handler(
     }
 }
 
-// Handler for API health check
-pub async fn health_handler() -> &'static str {
-    "OK"
+/// Helper function to validate date format (YYYY-MM-DD)
+fn is_valid_date_format(date_str: &str) -> bool {
+    if date_str.len() != 10 {
+        return false;
+    }
+
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+
+    let year = parts[0].parse::<i32>();
+    let month = parts[1].parse::<u32>();
+    let day = parts[2].parse::<u32>();
+
+    if year.is_err() || month.is_err() || day.is_err() {
+        return false;
+    }
+
+    let year = year.unwrap();
+    let month = month.unwrap();
+    let day = day.unwrap();
+
+    // Basic validation
+    if !(2000..=2100).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return false;
+    }
+
+    true
 }
 
 /// Validates if the given data appears to be a valid image format by checking common image signatures
@@ -328,4 +394,9 @@ fn validate_image_format(data: &[u8]) -> bool {
         // Unknown format
         _ => false,
     }
+}
+
+// Handler for API health check
+pub async fn health_handler() -> &'static str {
+    "OK"
 }
