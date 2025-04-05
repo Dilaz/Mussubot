@@ -10,35 +10,45 @@ use std::env;
 use tracing::{error, info, warn};
 
 /// Prompt for the Gemini agent to extract the work schedule from the image
-const PROMPT: &str = "Analyze the provided image, which is a work schedule.
+const PROMPT: &str = "Analyze the provided image, which is a work schedule for Cafe.
 
-First, identify the following details from the image:
-1.  The **employee name** provided: **{NAME}**
-2.  The **full date range** specified in the title (e.g., \"24.3.-13.4.2025\").
-3.  The **year** from the date range.
-4.  The **start date** and **end date** from the range.
-5.  All the individual **day/month column headers** visible within that date range (e.g., \"{DAY1}\", \"{DAY2}\", ...).
+First, identify the following reference details (for context only, do not include in the final output):
+1.  The **employee name** specified: **{{NAME}}**
+2.  The **full date range** from the title: \"{{DATE_RANGE}}\"
+3.  The **year**: {{YEAR}}
+4.  The **start date**: {{START_FINNISH}}
+5.  The **end date**: {{END_FINNISH}}
+6.  All the individual **day/month column headers** visible within the specified range (e.g., \"{{DAY1}}\", \"{{DAY2}}\", ..., \"{{SUNDAY2}}\").
 
-Your main task is to extract the complete work schedule for the employee **{NAME}** covering the date range from **{START_DATE}** to **{END_DATE}** (weeks {WEEK_NUMBERS}).
+Your primary task is to extract the complete work schedule **specifically for the employee {{NAME}}**, covering every single day from **{{START_DATE}} to {{END_DATE}}**, inclusive (corresponding to weeks {{WEEK_NUMBERS}} shown in the grid).
 
-Output the schedule as a JSON array where each object represents a single day within the identified date range. Each object must have the following exact structure:
+Output the schedule as a single JSON array. Each object in the array represents one day and MUST follow this exact structure:
 {
   \"date\": \"YYYY-MM-DD\",
   \"work_hours\": \"VALUE_FROM_CELL\"
 }
 
-Follow these SUPER strict rules for generating the JSON output:
-1.  **Date Format:** The 'date' value must be in \"YYYY-MM-DD\" format. Use the **year identified from the image title**. Correctly map the day and month from each column header identified (e.g., \"{DAY1}\" becomes \"{YEAR}-{MONTH1}-{DATE1}\", \"{DAY2}\" becomes \"{YEAR}-{MONTH2}-{DATE2}\").
-2.  **Work Hours Value:** The 'work_hours' value must be the **primary text content** found in the specific cell corresponding to the employee **{NAME}** and the specific date column.
-    *   If the cell contains a time range (e.g., \"7-15\", \"12-20.30\", \"8.35-16\"), use that exact string. Normalize commas in times to periods (e.g., \"7,30-15.30\" becomes \"7.30-15.30\").
-    *   If the cell contains a code (e.g., \"v\", \"x\", \"vp\", \"vv\", \"VL\", \"S\", \"tst\"), use that exact code string.
-    *   If the cell contains descriptive text (e.g., \"Toive\", \"Pai-kalla\", \"kuorma\"), use that exact text. If the text spans multiple lines within the cell (like \"Pai-\" above \"kalla\"), combine them into a single representative string (e.g., \"Pai-kalla\"). If it's like \"Toive\" above \"vp\", combine as \"Toive vp\".
-    *   **Crucially:** Some cells contain both a primary entry (time/code/text) *and* a separate numerical value below it (often representing hours like '8', '7.5', '8.25'). **Use only the primary entry (time/code/text) as the 'work_hours' value.** Ignore the separate numerical value at the bottom *unless* it is the *only* content in that cell.
-    *   If the cell for a specific date in the employee's row is **completely empty** (contains no text, code, or number), use an empty string `\"\"` for the 'work_hours' value.
-3.  **Completeness:** Ensure you generate one JSON object for **every single date column header identified** within the start and end dates provided ({START_DATE} to {END_DATE}). The total number of objects in the array must match the number of days shown in the schedule grid for the specified range.
-4.  **Accuracy:** Meticulously map the employee's specific row ({NAME}) to the correct date column using the day/month headers (e.g., \"{DAY1}\", \"{DAY2}\", etc.) across all the weeks shown (e.g., {WEEK_EXAMPLES}). Accuracy in matching the cell content to the correct date is paramount.
+Adhere strictly to these rules for generating the JSON output:
 
-Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, list of identified details, markdown formatting (`json`), or comments before or after the JSON data.";
+1.  **Date Generation:**
+    *   Create a JSON object for **every single calendar date** from {{START_DATE}} to {{END_DATE}}. There must be exactly {{DAYS_COUNT}} objects in the final array.
+    *   Format the 'date' value as \"YYYY-MM-DD\", using the year {{YEAR}} derived from the title. Map the day and month correctly from each column header (e.g., \"{{DAY1}}\" -> \"{{START_DATE}}\", \"{{SUNDAY1}}\" -> \"{{FIRST_SUNDAY_DATE}}\", \"{{SUNDAY2}}\" -> \"{{END_DATE}}\").
+
+2.  **Work Hours Extraction ('work_hours' value):**
+    *   For each date, locate the cell at the intersection of **{{NAME}}'s row** and the **correct date column**. Accurate mapping is critical.
+    *   The 'work_hours' value MUST be the **primary content** written in that specific cell.
+    *   **Handling Cell Content:**
+        *   **Time Ranges:** If the cell contains a time range (e.g., \"12-20.30\", \"7.30-15.30\", \"8.35-16\", \"9-17L\"), use that exact string. Normalize any commas in times to periods (e.g., \"7,30-15.30\" becomes \"7.30-15.30\").
+        *   **Codes:** If the cell contains only a code (e.g., \"x\", \"v\", \"vv\", \"VL\", \"S\", \"tst\"), use that exact code string.
+        *   **Text / Combined Entries:** If the cell contains text (e.g., \"Toive\") or combined text/codes (e.g., \"Toive\" written above \"vp\"), use the combined representation (\"Toive vp\"). If text spans multiple lines (like \"Pai-\" above \"kalla\"), combine them (\"Pai-kalla\").
+        *   **Ignoring Secondary Numbers:** Many cells contain a primary entry (time/code/text) *above* a separate numerical value (like '8', '7,5', '8.5', '8,25'). **You MUST use ONLY the primary entry as the 'work_hours' value.** For example, if a cell shows \"12-20.30\" on top and \"8,5\" below it, the correct 'work_hours' value is \"12-20.30\". The number below must be ignored in these cases.
+        *   **Handling Empty Cells:** If the specific cell for {{NAME}} on a given date is **visually blank or contains no primary text/code/time**, the 'work_hours' value MUST be an empty string `\"\"`. This is crucial for dates like the start of the period for {{NAME}} in the image.
+
+3.  **Accuracy and Completeness:**
+    *   Ensure the output covers the entire period from {{START_DATE}} to {{END_DATE}} without gaps.
+    *   Double-check that the content extracted for each date precisely matches the primary content in {{NAME}}'s row for that specific date column in the image grid. Avoid row or column misalignments.
+
+Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, markdown formatting (`json`), or comments before or after the JSON data.";
 
 pub async fn parse_schedule_image(
     employee_name: &str,
@@ -68,7 +78,6 @@ pub async fn parse_schedule_image(
 
         // Initialize Gemini client with API key
         let gemini_client = GeminiClient::new(&api_key);
-        let year = Local::now().year();
 
         // Calculate default dates if not provided
         let (start_date_str, end_date_str) = match (start_date, end_date) {
@@ -119,36 +128,53 @@ pub async fn parse_schedule_image(
             week_examples.push_str(&format!("vko {}", week));
         }
 
-        // Format the first day (usually Monday)
+        // Format the start date in Finnish format (e.g., "24.3.")
+        let start_finnish = format!("{}.{}.", start_date_obj.day(), start_date_obj.month());
+        // Format the end date in Finnish format (e.g., "13.4.")
+        let end_finnish = format!("{}.{}.", end_date_obj.day(), end_date_obj.month());
+        // Get year from the start date
+        let year = start_date_obj.year();
+
+        // Calculate the number of days in the range (inclusive)
+        let days_count = (end_date_obj - start_date_obj).num_days() + 1;
+
+        // Format date range in Finnish format for title (e.g., "24.3.-13.4.2025")
+        let date_range = format!("{}-{}{}", start_finnish, end_finnish, year);
+
+        // Format first day (e.g., "Ma 24.3.")
         let day1 = format!("Ma {}.{}.", start_date_obj.day(), start_date_obj.month());
 
-        // Format the second day (usually Tuesday)
-        let day2 = format!(
-            "Ti {}.{}.",
-            (start_date_obj + Duration::days(1)).day(),
-            (start_date_obj + Duration::days(1)).month()
-        );
+        // Format second day (e.g., "Ti 25.3.")
+        let day2_date = start_date_obj + Duration::days(1);
+        let day2 = format!("Ti {}.{}.", day2_date.day(), day2_date.month());
 
-        // Format for example dates in prompt
-        let month1 = format!("{:02}", start_date_obj.month());
-        let date1 = format!("{:02}", start_date_obj.day());
-        let month2 = format!("{:02}", (start_date_obj + Duration::days(1)).month());
-        let date2 = format!("{:02}", (start_date_obj + Duration::days(1)).day());
+        // Format Sunday in the first week (for example dates)
+        let first_sunday_offset = (7 - start_date_obj.weekday().num_days_from_monday()) % 7;
+        let first_sunday = start_date_obj + Duration::days(first_sunday_offset as i64);
+        let sunday1 = format!("Su {}.{}.", first_sunday.day(), first_sunday.month());
+
+        // Format Sunday in the last week
+        let sunday2 = format!("Su {}.{}.", end_date_obj.day(), end_date_obj.month());
 
         // Replace placeholders in prompt with actual values
         let prompt = PROMPT
-            .replace("{NAME}", employee_name)
-            .replace("{YEAR}", &year.to_string())
-            .replace("{START_DATE}", &start_date_str)
-            .replace("{END_DATE}", &end_date_str)
-            .replace("{WEEK_NUMBERS}", &week_numbers)
-            .replace("{WEEK_EXAMPLES}", &week_examples)
-            .replace("{DAY1}", &day1)
-            .replace("{DAY2}", &day2)
-            .replace("{MONTH1}", &month1)
-            .replace("{DATE1}", &date1)
-            .replace("{MONTH2}", &month2)
-            .replace("{DATE2}", &date2);
+            .replace("{{NAME}}", employee_name)
+            .replace("{{DATE_RANGE}}", &date_range)
+            .replace("{{YEAR}}", &year.to_string())
+            .replace("{{START_FINNISH}}", &start_finnish)
+            .replace("{{END_FINNISH}}", &end_finnish)
+            .replace("{{DAY1}}", &day1)
+            .replace("{{DAY2}}", &day2)
+            .replace("{{SUNDAY1}}", &sunday1)
+            .replace("{{SUNDAY2}}", &sunday2)
+            .replace("{{START_DATE}}", &start_date_str)
+            .replace("{{END_DATE}}", &end_date_str)
+            .replace("{{WEEK_NUMBERS}}", &week_numbers)
+            .replace(
+                "{{FIRST_SUNDAY_DATE}}",
+                &first_sunday.format("%Y-%m-%d").to_string(),
+            )
+            .replace("{{DAYS_COUNT}}", &days_count.to_string());
 
         // Base64 encode the image
         let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);
