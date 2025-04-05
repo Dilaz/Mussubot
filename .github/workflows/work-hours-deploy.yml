@@ -4,11 +4,12 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'work_hours/**'
+      - 'src/bin/work_hours/**'
       - 'Dockerfile.work_hours'
       - 'k8s/work-hours-deployment.yaml'
       - 'k8s/work-hours-service-ingress.yaml'
       - '.github/workflows/work-hours-deploy.yml'
+      - 'assets/work_hours/**'
   workflow_dispatch:
 
 env:

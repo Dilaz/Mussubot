@@ -5,9 +5,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration as TokioDuration};
+use tokio::time::{sleep, sleep_until, Duration as TokioDuration, Instant};
 use tracing::{error, info, warn};
 
 use super::handle::GoogleCalendarHandle;
@@ -112,7 +113,48 @@ impl Scheduler for GoogleCalendarScheduler {
                         }
 
                         info!("Next notification scheduled for {}", next);
-                        sleep(TokioDuration::from_secs(wait_duration.num_seconds() as u64)).await;
+
+                        // Convert DateTime<Local> to SystemTime then to Instant for precise scheduling
+                        let utc_time = next.with_timezone(&chrono::Utc);
+                        let next_system_time = SystemTime::UNIX_EPOCH
+                            + std::time::Duration::from_secs(utc_time.timestamp() as u64);
+                        if let Ok(duration_since_epoch) =
+                            next_system_time.duration_since(SystemTime::UNIX_EPOCH)
+                        {
+                            let now_duration = match SystemTime::now()
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                            {
+                                Ok(now_secs) => now_secs,
+                                Err(_) => {
+                                    error!("Failed to get current system time, falling back to relative sleep");
+                                    sleep(TokioDuration::from_secs(
+                                        wait_duration.num_seconds() as u64
+                                    ))
+                                    .await;
+                                    continue;
+                                }
+                            };
+
+                            // Calculate the exact instant to wake up
+                            let sleep_duration = if duration_since_epoch > now_duration {
+                                duration_since_epoch - now_duration
+                            } else {
+                                error!(
+                                    "Calculated time is in the past, scheduling retry in an hour"
+                                );
+                                sleep(TokioDuration::from_secs(3600)).await;
+                                continue;
+                            };
+
+                            sleep_until(
+                                Instant::now() + TokioDuration::from_secs(sleep_duration.as_secs()),
+                            )
+                            .await;
+                        } else {
+                            error!("Failed to convert time, falling back to relative sleep");
+                            sleep(TokioDuration::from_secs(wait_duration.num_seconds() as u64))
+                                .await;
+                        }
 
                         // After waiting, check which notifications to send
                         let now = Local::now();
