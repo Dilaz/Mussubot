@@ -12,10 +12,10 @@ use tracing::{error, info, warn};
 /// Prompt for the Gemini agent to extract the work schedule from the image
 const PROMPT: &str = "Analyze the provided image, which is a work schedule.
 
-First, identify the following reference details from the **current image** (for context only, do not include in the final output):
-1.  The **target employee name**: {{NAME}} (You must specify the employee name here each time you use this prompt).
-2.  The **full date range** shown in the schedule's title (e.g., \"{{DATE_RANGE}}\" or similar).
-3.  The **year** indicated by the date range in the title (e.g., {{YEAR}}).
+First, identify the following reference details from the **current image**:
+1.  The **target employee name**: {{NAME}}
+2.  The **full date range** shown in the schedule's title (e.g., \"{{DATE_RANGE}}\" or similar)
+3.  The **year** indicated by the date range in the title (e.g., {{YEAR}})
 4.  The **start date** ({{START_FINNISH}}) and **end date** ({{END_FINNISH}}) from the identified range.
 5.  All the individual **day/month column headers** visible within that identified date range (e.g., \"{{DAY1}}\", \"{{DAY2}}\", ... through \"{{SUNDAY1}}\" and up to \"{{SUNDAY2}}\").
 
