@@ -4,6 +4,7 @@
 mod auth;
 mod db;
 mod handlers;
+mod image_processing;
 mod model;
 mod parser;
 
@@ -54,6 +55,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "web-interface")]
     {
+        // Check for command-line arguments for image alignment functionality
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() >= 4 && args[1] == "--align-image" {
+            // Initialize basic logging for the image processing tool
+            tracing_subscriber::fmt::init();
+
+            let input_path = &args[2];
+            let output_path = &args[3];
+
+            println!(
+                "Running image alignment on {} and saving result to {}",
+                input_path, output_path
+            );
+            match image_processing::process_and_save(input_path, output_path) {
+                Ok(_) => {
+                    println!("Image alignment completed successfully!");
+                    return Ok(());
+                }
+                Err(e) => {
+                    println!("Image alignment failed: {}", e);
+                    return Err(e.into());
+                }
+            }
+        }
+
+        // Continue with web server initialization if not doing image alignment
         // Load environment variables
         dotenvy::dotenv().ok();
 

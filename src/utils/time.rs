@@ -1,4 +1,3 @@
-use crate::error::BotResult;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDateTime, TimeZone};
 
 /// Parse time string in HH:MM format
@@ -81,20 +80,6 @@ pub fn next_notification_time(
     }
 
     Some(next)
-}
-
-/// Calculate the wait duration until the next notification
-pub fn calculate_wait_duration(now: &DateTime<Local>, next_time: &NaiveDateTime) -> BotResult<i64> {
-    let wait_duration = next_time.signed_duration_since(now.naive_local());
-    let seconds = wait_duration.num_seconds();
-
-    if seconds <= 0 {
-        // Instead of returning an error, we'll set a minimum wait time (1 minute)
-        // This handles cases where the time calculation is very close to the scheduled time
-        return Ok(60);
-    }
-
-    Ok(seconds)
 }
 
 /// Get date range for weekly schedule (Monday to Sunday)
@@ -245,32 +230,6 @@ mod tests {
             result.format("%Y-%m-%d %H:%M").to_string(),
             "2023-01-09 15:30"
         );
-    }
-
-    #[test]
-    fn test_calculate_wait_duration() {
-        // Current time
-        let now = Local.with_ymd_and_hms(2023, 1, 1, 10, 0, 0).unwrap();
-
-        // Target time 1 hour later
-        let target = now.naive_local() + Duration::hours(1);
-        let wait = calculate_wait_duration(&now, &target).unwrap();
-        assert_eq!(wait, 3600); // 3600 seconds = 1 hour
-
-        // Target time 1 minute later
-        let target = now.naive_local() + Duration::minutes(1);
-        let wait = calculate_wait_duration(&now, &target).unwrap();
-        assert_eq!(wait, 60); // 60 seconds = 1 minute
-
-        // Target time in the past (should return minimum wait time)
-        let target = now.naive_local() - Duration::minutes(5);
-        let wait = calculate_wait_duration(&now, &target).unwrap();
-        assert_eq!(wait, 60); // Minimum wait time of 60 seconds
-
-        // Target time is calculated with next_notification_time
-        let result = next_notification_time(now, "9:30", false).unwrap();
-        let wait = calculate_wait_duration(&now, &result.naive_local()).unwrap();
-        assert_eq!(wait, 23 * 3600 + 30 * 60);
     }
 
     #[test]

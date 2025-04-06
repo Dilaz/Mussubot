@@ -44,7 +44,10 @@ hyper-rustls = "0.27.5"
 uuid = { version = "1.16.0", features = ["v4"] }
 tiny_http = "0.12.0"
 # AI-powered image processing
-rig-core = { version = "0.10.0", features = ["derive"], optional = true }
+rig-core = { version = "0.11.0", features = ["derive"], optional = true }
+# Image processing
+image = "0.25.6"
+imageproc = "0.25.0"
 # Web server for work_hours
 axum = { version = "0.8.3", features = ["multipart"], optional = true }
 axum-extra = { version = "0.10.1", features = ["cookie"], optional = true }

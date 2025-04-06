@@ -10,17 +10,16 @@ use std::env;
 use tracing::{error, info, warn};
 
 /// Prompt for the Gemini agent to extract the work schedule from the image
-const PROMPT: &str = "Analyze the provided image, which is a work schedule for Cafe.
+const PROMPT: &str = "Analyze the provided image, which is a work schedule.
 
-First, identify the following reference details (for context only, do not include in the final output):
-1.  The **employee name** specified: **{{NAME}}**
-2.  The **full date range** from the title: \"{{DATE_RANGE}}\"
-3.  The **year**: {{YEAR}}
-4.  The **start date**: {{START_FINNISH}}
-5.  The **end date**: {{END_FINNISH}}
-6.  All the individual **day/month column headers** visible within the specified range (e.g., \"{{DAY1}}\", \"{{DAY2}}\", ..., \"{{SUNDAY2}}\").
+First, identify the following reference details from the **current image** (for context only, do not include in the final output):
+1.  The **target employee name**: {{NAME}} (You must specify the employee name here each time you use this prompt).
+2.  The **full date range** shown in the schedule's title (e.g., \"{{DATE_RANGE}}\" or similar).
+3.  The **year** indicated by the date range in the title (e.g., {{YEAR}}).
+4.  The **start date** ({{START_FINNISH}}) and **end date** ({{END_FINNISH}}) from the identified range.
+5.  All the individual **day/month column headers** visible within that identified date range (e.g., \"{{DAY1}}\", \"{{DAY2}}\", ... through \"{{SUNDAY1}}\" and up to \"{{SUNDAY2}}\").
 
-Your primary task is to extract the complete work schedule **specifically for the employee {{NAME}}**, covering every single day from **{{START_DATE}} to {{END_DATE}}**, inclusive (corresponding to weeks {{WEEK_NUMBERS}} shown in the grid).
+Your primary task is to extract the complete work schedule specifically for the employee **{{NAME}}**, covering every single day from the **start date** ({{START_DATE}}) to the **end date** ({{END_DATE}}) identified from the image title (typically spanning {{DAYS_COUNT}} days as shown in the grid, covering week numbers {{WEEK_NUMBERS}}).
 
 Output the schedule as a single JSON array. Each object in the array represents one day and MUST follow this exact structure:
 {
@@ -31,24 +30,27 @@ Output the schedule as a single JSON array. Each object in the array represents 
 Adhere strictly to these rules for generating the JSON output:
 
 1.  **Date Generation:**
-    *   Create a JSON object for **every single calendar date** from {{START_DATE}} to {{END_DATE}}. There must be exactly {{DAYS_COUNT}} objects in the final array.
-    *   Format the 'date' value as \"YYYY-MM-DD\", using the year {{YEAR}} derived from the title. Map the day and month correctly from each column header (e.g., \"{{DAY1}}\" -> \"{{START_DATE}}\", \"{{SUNDAY1}}\" -> \"{{FIRST_SUNDAY_DATE}}\", \"{{SUNDAY2}}\" -> \"{{END_DATE}}\").
+    *   Create a JSON object for **every single calendar date** from the **identified start date** to the **identified end date** derived *directly from the image title*. The total number of objects must match the number of days in that identified range.
+    *   Format the 'date' value as \"YYYY-MM-DD\", using the **year identified from the image title**. Correctly map the day and month from each **column header found in the image grid** for the relevant period.
 
 2.  **Work Hours Extraction ('work_hours' value):**
-    *   For each date, locate the cell at the intersection of **{{NAME}}'s row** and the **correct date column**. Accurate mapping is critical.
+    *   For each date, locate the cell at the intersection of the **{{NAME}}'s row** and the **correct date column** in the grid. Accurate row/column mapping is critical.
     *   The 'work_hours' value MUST be the **primary content** written in that specific cell.
     *   **Handling Cell Content:**
         *   **Time Ranges:** If the cell contains a time range (e.g., \"12-20.30\", \"7.30-15.30\", \"8.35-16\", \"9-17L\"), use that exact string. Normalize any commas in times to periods (e.g., \"7,30-15.30\" becomes \"7.30-15.30\").
         *   **Codes:** If the cell contains only a code (e.g., \"x\", \"v\", \"vv\", \"VL\", \"S\", \"tst\"), use that exact code string.
         *   **Text / Combined Entries:** If the cell contains text (e.g., \"Toive\") or combined text/codes (e.g., \"Toive\" written above \"vp\"), use the combined representation (\"Toive vp\"). If text spans multiple lines (like \"Pai-\" above \"kalla\"), combine them (\"Pai-kalla\").
         *   **Ignoring Secondary Numbers:** Many cells contain a primary entry (time/code/text) *above* a separate numerical value (like '8', '7,5', '8.5', '8,25'). **You MUST use ONLY the primary entry as the 'work_hours' value.** For example, if a cell shows \"12-20.30\" on top and \"8,5\" below it, the correct 'work_hours' value is \"12-20.30\". The number below must be ignored in these cases.
-        *   **Handling Empty Cells:** If the specific cell for {{NAME}} on a given date is **visually blank or contains no primary text/code/time**, the 'work_hours' value MUST be an empty string `\"\"`. This is crucial for dates like the start of the period for {{NAME}} in the image.
+        *   **Handling Empty Cells:** If the specific cell for the target employee on a given date is **visually blank or contains no primary text/code/time**, the 'work_hours' value MUST be an empty string `\"\"`. Ensure this rule is applied correctly even for days at the very beginning or end of the identified date range.
 
 3.  **Accuracy and Completeness:**
-    *   Ensure the output covers the entire period from {{START_DATE}} to {{END_DATE}} without gaps.
-    *   Double-check that the content extracted for each date precisely matches the primary content in {{NAME}}'s row for that specific date column in the image grid. Avoid row or column misalignments.
+    *   Ensure the output covers the entire period from the **identified start date** ({{START_DATE}}) to the **identified end date** ({{END_DATE}}) without gaps.
+    *   Double-check that the content extracted for each date precisely matches the primary content in the **{{NAME}}'s row** for that specific date column in the image grid. Avoid row or column misalignments.
 
-Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, markdown formatting (`json`), or comments before or after the JSON data.";
+4. **CRITICAL:** THERE MIGHT BE EMPTY DAYS IN THE SCHEDULE. YOU MUST INCLUDE THEM IN THE OUTPUT. THERE MIGHT BE MULTIPLE EMPTY DAYS IN A ROW. YOU MUST INCLUDE ALL OF THEM.
+
+
+Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, list of identified details, markdown formatting (`json`), or comments before or after the JSON data.";
 
 pub async fn parse_schedule_image(
     employee_name: &str,
@@ -66,6 +68,23 @@ pub async fn parse_schedule_image(
 
     #[cfg(feature = "web-interface")]
     {
+        // Preprocess the image to align the grid properly
+        info!("Preprocessing image to align grid...");
+        let processed_image_data =
+            match crate::image_processing::preprocess_schedule_image(image_data) {
+                Ok(data) => {
+                    info!(
+                        "Image preprocessing successful. New size: {} bytes",
+                        data.len()
+                    );
+                    data
+                }
+                Err(e) => {
+                    warn!("Image preprocessing failed: {}. Using original image.", e);
+                    image_data.to_vec()
+                }
+            };
+
         // Use env to get API key
         let api_key = env::var("GEMINI_API_KEY")
             .map_err(|_| "GEMINI_API_KEY environment variable not set".to_string())?;
@@ -177,7 +196,7 @@ pub async fn parse_schedule_image(
             .replace("{{DAYS_COUNT}}", &days_count.to_string());
 
         // Base64 encode the image
-        let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);
+        let base64_image = base64::engine::general_purpose::STANDARD.encode(processed_image_data);
 
         let image = Image {
             data: base64_image,
@@ -195,7 +214,7 @@ pub async fn parse_schedule_image(
         // Get the text response from Gemini
         let agent = gemini_client
             .agent(&model)
-            .preamble("You are a helpful assistant that parses work schedules from images.")
+            .preamble("You are an expert at parsing work schedules from images and get paid hundreds of thousands of dollars for your work so you are very good at it, but if you fail, you will be fired and lose your job and your family will starve. You are also very good at Finnish.")
             .temperature(0.0)
             .build();
 
