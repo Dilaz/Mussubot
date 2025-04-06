@@ -11,7 +11,7 @@ serenity = { version = "0.12.4", default-features = false, features = ["client",
 # Command framework for Serenity
 poise = "0.6.1"
 # Async runtime
-tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
 # Error handling
 thiserror = "2.0.12"
 miette = { version = "7.5.0", features = ["fancy"] }
@@ -28,7 +28,7 @@ toml = "0.8.20"
 # Async traits
 async-trait = "0.1.88"
 dotenvy = "0.15.7"
-reqwest = { version = "0.12.15", features = ["json"] }
+reqwest = { version = "0.12.15", features = ["json", "multipart"] }
 url = "2.5.4"
 tokio-util = "0.7.14"
 webbrowser = "1.0.4"
@@ -37,7 +37,7 @@ futures = "0.3.31"
 actix = "0.13.5"
 actix-rt = "2.10.0"
 # Redis
-redis = { version = "0.29.2", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "0.29.4", features = ["tokio-comp", "connection-manager"] }
 hyper = "1.6.0"
 hyper-rustls = "0.27.5"
 # Additional dependencies for calendar token binary
@@ -45,9 +45,6 @@ uuid = { version = "1.16.0", features = ["v4"] }
 tiny_http = "0.12.0"
 # AI-powered image processing
 rig-core = { version = "0.11.0", features = ["derive"], optional = true }
-# Image processing
-image = "0.25.6"
-imageproc = "0.25.0"
 # Web server for work_hours
 axum = { version = "0.8.3", features = ["multipart"], optional = true }
 axum-extra = { version = "0.10.1", features = ["cookie"], optional = true }
@@ -63,7 +60,7 @@ http-body-util = { version = "0.1.3", optional = true }
 bytes = { version = "1.10.1", optional = true }
 base64 = "0.22.1"
 schemars = "0.8.22"
-rust-i18n = "3.1.3"
+rust-i18n = "3.1.4"
 lazy_static = "1.5.0"
 
 [[bin]]
