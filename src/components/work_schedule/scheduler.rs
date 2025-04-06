@@ -1,28 +1,30 @@
-use chrono::{Local, TimeZone, Utc};
+use chrono::{Local, TimeZone};
 use lazy_static::lazy_static;
 use poise::serenity_prelude as serenity;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
-use std::time::SystemTime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, sleep_until, Duration as TokioDuration, Instant};
-use tracing::{error, info, warn};
+use tokio::time::{sleep, Duration as TokioDuration};
+use tracing::{debug, error, info, warn};
 
 use super::handle::WorkScheduleHandle;
 use super::notifications::{send_daily_notification, send_weekly_notification};
 use super::time::calculate_next_notification;
 use crate::config::Config;
 use crate::error::BotResult;
-use crate::utils::scheduler::Scheduler;
-use crate::utils::time::{calculate_wait_duration, get_weekly_date_range};
+use crate::utils::scheduler::{
+    is_notification_sent, reset_notification_flag, sleep_until_target_time, try_claim_notification,
+    update_last_sent_date, update_notification_flags, NotificationHandler, NotificationType,
+    Scheduler,
+};
+use crate::utils::time::get_weekly_date_range;
 
 lazy_static! {
     static ref SCHEDULER_INSTANCES: AtomicU32 = AtomicU32::new(0);
     static ref SCHEDULER_TASK_RUNNING: AtomicBool = AtomicBool::new(false);
-    // Add static task storage for spawned task
     static ref SCHEDULER_TASK: RwLock<Option<JoinHandle<()>>> = RwLock::new(None);
 }
 
@@ -32,6 +34,45 @@ pub struct WorkScheduleScheduler;
 impl Default for WorkScheduleScheduler {
     fn default() -> Self {
         Self
+    }
+}
+
+/// WorkSchedule notification handler implementation
+struct WorkScheduleNotificationHandler {
+    handle: WorkScheduleHandle,
+}
+
+impl NotificationHandler for WorkScheduleNotificationHandler {
+    fn send_daily_notification<'a>(
+        &'a self,
+        ctx: &'a serenity::Context,
+        channel_id: u64,
+    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
+        let handle = self.handle.clone();
+
+        Box::pin(async move {
+            let today = Local::now().format("%Y-%m-%d").to_string();
+            info!("Sending daily work schedule notification for {}", today);
+            send_daily_notification(ctx, channel_id, &handle, &today).await
+        })
+    }
+
+    fn send_weekly_notification<'a>(
+        &'a self,
+        ctx: &'a serenity::Context,
+        channel_id: u64,
+    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
+        let handle = self.handle.clone();
+
+        Box::pin(async move {
+            let now = Local::now();
+            let (start_date, end_date) = get_weekly_date_range(&now);
+            info!(
+                "Sending weekly work schedule notification for {} to {}",
+                start_date, end_date
+            );
+            send_weekly_notification(ctx, channel_id, &handle, &start_date, &end_date).await
+        })
     }
 }
 
@@ -69,9 +110,16 @@ impl Scheduler for WorkScheduleScheduler {
             if !SCHEDULER_TASK_RUNNING.swap(true, Ordering::SeqCst) {
                 info!("Starting Work Schedule notification task");
 
+                // Create the notification handler
+                let notification_handler = WorkScheduleNotificationHandler {
+                    handle: handle.clone(),
+                };
+                let notification_handler = Arc::new(notification_handler);
+
                 // Clone values for the task
                 let ctx_clone = Arc::clone(&ctx);
-                let handle_clone = handle.clone();
+                let daily_time = daily_time.clone();
+                let weekly_time = weekly_time.clone();
 
                 // Spawn the scheduler task
                 let task = tokio::spawn(async move {
@@ -80,7 +128,7 @@ impl Scheduler for WorkScheduleScheduler {
                         &daily_time,
                         &weekly_time,
                         channel_id,
-                        handle_clone,
+                        notification_handler,
                     )
                     .await;
                 });
@@ -119,11 +167,16 @@ async fn run_scheduler_loop(
     daily_time: &str,
     weekly_time: &str,
     channel_id: u64,
-    handle: WorkScheduleHandle,
+    handler: Arc<dyn NotificationHandler>,
 ) {
     loop {
         // Get the current time
         let now = Local::now();
+        let today = now.format("%Y-%m-%d").to_string();
+        let (week_start_date, _) = get_weekly_date_range(&now);
+
+        // Update flags based on current date
+        update_notification_flags(&today, &week_start_date).await;
 
         // Calculate the next notification time
         let (notification_type, next_time) =
@@ -136,78 +189,91 @@ async fn run_scheduler_loop(
                 }
             };
 
-        info!(
-            "Next {} work schedule notification scheduled for {}",
-            notification_type, next_time
-        );
-
-        // Calculate how long to wait
-        let wait_seconds = match calculate_wait_duration(&now, &next_time) {
-            Ok(seconds) => seconds,
-            Err(e) => {
-                error!("Error calculating wait duration: {}", e);
-                3600 // Default to an hour if we can't calculate
+        // Convert string notification type to enum
+        let notification_type_enum = match notification_type.as_str() {
+            "daily" => NotificationType::Daily,
+            "weekly" => NotificationType::Weekly,
+            _ => {
+                error!("Unknown notification type: {}", notification_type);
+                sleep(TokioDuration::from_secs(3600)).await; // Retry in an hour
+                continue;
             }
         };
 
-        // Convert NaiveDateTime to SystemTime then to Instant for precise scheduling
-        let utc_timestamp = Utc
-            .from_local_datetime(&next_time)
-            .single()
-            .unwrap()
-            .timestamp();
-        let next_system_time =
-            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(utc_timestamp as u64);
-        if let Ok(duration_since_epoch) = next_system_time.duration_since(SystemTime::UNIX_EPOCH) {
-            let now_duration = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-                Ok(now_secs) => now_secs,
-                Err(_) => {
-                    error!("Failed to get current system time, falling back to relative sleep");
-                    sleep(TokioDuration::from_secs(wait_seconds as u64)).await;
-                    continue;
+        // Check if notification was already sent
+        if is_notification_sent(notification_type_enum.clone()) {
+            debug!(
+                "{:?} notification for {} already sent, recalculating next notification time",
+                notification_type_enum,
+                if matches!(notification_type_enum, NotificationType::Daily) {
+                    &today
+                } else {
+                    &week_start_date
                 }
-            };
+            );
+            sleep(TokioDuration::from_secs(60)).await; // Wait a minute before recalculating
+            continue;
+        }
 
-            // Calculate the exact instant to wake up
-            let sleep_duration = if duration_since_epoch > now_duration {
-                duration_since_epoch - now_duration
-            } else {
-                error!("Calculated time is in the past, scheduling retry in an hour");
-                sleep(TokioDuration::from_secs(3600)).await;
-                continue;
-            };
+        info!(
+            "Next {:?} work schedule notification scheduled for {}",
+            notification_type_enum, next_time
+        );
 
-            sleep_until(Instant::now() + TokioDuration::from_secs(sleep_duration.as_secs())).await;
-        } else {
-            error!("Failed to convert time, falling back to relative sleep");
-            sleep(TokioDuration::from_secs(wait_seconds as u64)).await;
+        // Convert NaiveDateTime to DateTime<Local> for the sleep_until_target_time function
+        let local_time = match Local.from_local_datetime(&next_time) {
+            chrono::LocalResult::Single(dt) => dt,
+            _ => {
+                error!("Failed to convert NaiveDateTime to DateTime<Local>, using current time");
+                Local::now()
+            }
+        };
+
+        // Sleep until the target time
+        if let Err(e) = sleep_until_target_time(local_time).await {
+            error!("Error while waiting for target time: {:?}", e);
+            sleep(TokioDuration::from_secs(60)).await; // Wait a minute before retrying
+            continue;
+        }
+
+        // Try to claim the notification
+        if !try_claim_notification(notification_type_enum.clone()) {
+            info!(
+                "{:?} notification already claimed by another instance",
+                notification_type_enum
+            );
+            sleep(TokioDuration::from_secs(10)).await; // Short wait before loop continues
+            continue;
         }
 
         // Send the appropriate notification
-        let now = Local::now();
-        match notification_type.as_str() {
-            "daily" => {
-                // Generate today's date in YYYY-MM-DD format
-                let today = now.format("%Y-%m-%d").to_string();
+        let result = match notification_type_enum {
+            NotificationType::Daily => handler.send_daily_notification(&ctx, channel_id).await,
+            NotificationType::Weekly => handler.send_weekly_notification(&ctx, channel_id).await,
+        };
 
-                if let Err(e) = send_daily_notification(&ctx, channel_id, &handle, &today).await {
-                    error!("Failed to send daily work schedule notification: {}", e);
-                }
-            }
-            "weekly" => {
-                // Get date range for the week
-                let (start_date, end_date) = get_weekly_date_range(&now);
-
-                if let Err(e) =
-                    send_weekly_notification(&ctx, channel_id, &handle, &start_date, &end_date)
-                        .await
-                {
-                    error!("Failed to send weekly work schedule notification: {}", e);
-                }
-            }
-            _ => {
-                error!("Unknown notification type: {}", notification_type);
-            }
+        // Handle the notification result
+        if let Err(e) = result {
+            error!(
+                "Failed to send {:?} work schedule notification: {}",
+                notification_type_enum, e
+            );
+            // Reset the flag if sending failed so we can try again
+            reset_notification_flag(notification_type_enum);
+        } else {
+            info!(
+                "Successfully sent {:?} work schedule notification",
+                notification_type_enum
+            );
+            // Update the last sent date
+            let date = match notification_type_enum {
+                NotificationType::Daily => today.clone(),
+                NotificationType::Weekly => week_start_date.clone(),
+            };
+            update_last_sent_date(notification_type_enum, &date).await;
         }
+
+        // Small pause after sending to prevent immediate recalculation
+        sleep(TokioDuration::from_secs(5)).await;
     }
 }
