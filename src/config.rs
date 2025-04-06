@@ -40,6 +40,8 @@ pub struct Config {
     pub bot_locale: String,
     /// Interval in seconds for checking new calendar events (default: 300)
     pub new_events_check_interval: u64,
+    /// LlamaIndex API Key
+    pub llama_api_key: String,
 }
 
 impl Config {
@@ -93,6 +95,9 @@ impl Config {
         // Bot locale
         let bot_locale = env::var("BOT_LOCALE").unwrap_or_else(|_| "en-US".to_string());
 
+        // LlamaIndex API Key
+        let llama_api_key = env::var("LLAMA_API_KEY").unwrap_or_default();
+
         // Initialize default components
         let mut components = HashMap::new();
         components.insert("google_calendar".to_string(), true);
@@ -122,6 +127,7 @@ impl Config {
             weekly_notification_time,
             bot_locale,
             new_events_check_interval,
+            llama_api_key,
         })
     }
 

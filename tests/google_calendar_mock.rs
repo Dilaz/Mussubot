@@ -95,6 +95,7 @@ async fn test_calendar_with_config() {
         weekly_notification_time: "06:00".to_string(),
         bot_locale: "en-US".to_string(),
         new_events_check_interval: 300,
+        llama_api_key: "test_llama_api_key".to_string(),
     }));
 
     // Create a mock calendar handle
