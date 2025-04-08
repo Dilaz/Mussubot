@@ -44,7 +44,7 @@ struct WorkScheduleNotificationHandler {
 
 impl NotificationHandler for WorkScheduleNotificationHandler {
     fn component_type(&self) -> String {
-        "work_schedule".to_string()
+        WorkScheduleScheduler::component_type()
     }
 
     fn send_daily_notification<'a>(
@@ -124,10 +124,14 @@ impl Scheduler for WorkScheduleScheduler {
                 };
                 let notification_handler = Arc::new(notification_handler);
 
+                // Get the component type
+                let component_type = Self::component_type();
+
                 // Clone values for the task
                 let ctx_clone = Arc::clone(&ctx);
                 let daily_time = daily_time.clone();
                 let weekly_time = weekly_time.clone();
+                let component_type_clone = component_type.clone();
 
                 // Spawn the scheduler task
                 let task = tokio::spawn(async move {
@@ -137,6 +141,7 @@ impl Scheduler for WorkScheduleScheduler {
                         &weekly_time,
                         channel_id,
                         notification_handler,
+                        &component_type_clone,
                     )
                     .await;
                 });
@@ -176,6 +181,7 @@ async fn run_scheduler_loop(
     weekly_time: &str,
     channel_id: u64,
     handler: Arc<dyn NotificationHandler>,
+    component_type: &str,
 ) {
     loop {
         // Get the current time
@@ -183,11 +189,8 @@ async fn run_scheduler_loop(
         let today = now.format("%Y-%m-%d").to_string();
         let (week_start_date, _) = get_weekly_date_range(&now);
 
-        // Get component type
-        let component_type = handler.component_type();
-
         // Update flags based on current date
-        update_notification_flags(&today, &week_start_date, &component_type).await;
+        update_notification_flags(&today, &week_start_date, component_type).await;
 
         // Calculate the next notification time
         let (notification_type, next_time) =
@@ -212,7 +215,7 @@ async fn run_scheduler_loop(
         };
 
         // Check if notification was already sent
-        if is_notification_sent(notification_type_enum.clone(), &component_type).await {
+        if is_notification_sent(notification_type_enum.clone(), component_type).await {
             debug!(
                 "[{}] {:?} notification for {} already sent, recalculating next notification time",
                 component_type,
@@ -249,7 +252,7 @@ async fn run_scheduler_loop(
         }
 
         // Try to claim the notification
-        if !try_claim_notification(notification_type_enum.clone(), &component_type).await {
+        if !try_claim_notification(notification_type_enum.clone(), component_type).await {
             info!(
                 "[{}] {:?} notification already claimed by another instance",
                 component_type, notification_type_enum
@@ -271,7 +274,7 @@ async fn run_scheduler_loop(
                 component_type, notification_type_enum, e
             );
             // Reset the flag if sending failed so we can try again
-            reset_notification_flag(notification_type_enum.clone(), &component_type).await;
+            reset_notification_flag(notification_type_enum.clone(), component_type).await;
         } else {
             info!(
                 "[{}] Successfully sent {:?} work schedule notification",
@@ -282,7 +285,7 @@ async fn run_scheduler_loop(
                 NotificationType::Daily => today.clone(),
                 NotificationType::Weekly => week_start_date.clone(),
             };
-            update_last_sent_date(notification_type_enum, &date, &component_type).await;
+            update_last_sent_date(notification_type_enum, &date, component_type).await;
         }
 
         // Small pause after sending to prevent immediate recalculation
