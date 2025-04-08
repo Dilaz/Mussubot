@@ -43,10 +43,6 @@ struct WorkScheduleNotificationHandler {
 }
 
 impl NotificationHandler for WorkScheduleNotificationHandler {
-    fn component_type(&self) -> String {
-        WorkScheduleScheduler::component_type()
-    }
-
     fn send_daily_notification<'a>(
         &'a self,
         ctx: &'a serenity::Context,

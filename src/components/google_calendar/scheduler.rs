@@ -171,10 +171,6 @@ struct GoogleCalendarNotificationHandler {
 }
 
 impl NotificationHandler for GoogleCalendarNotificationHandler {
-    fn component_type(&self) -> String {
-        GoogleCalendarScheduler::component_type()
-    }
-
     fn send_daily_notification<'a>(
         &'a self,
         ctx: &'a serenity::Context,

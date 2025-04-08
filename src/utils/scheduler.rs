@@ -52,9 +52,6 @@ pub trait Scheduler: Send + 'static {
 
 /// Common notification handler trait to be implemented by components
 pub trait NotificationHandler: Send + Sync + 'static {
-    /// Get the component type identifier
-    fn component_type(&self) -> String;
-
     /// Send a daily notification
     fn send_daily_notification<'a>(
         &'a self,
