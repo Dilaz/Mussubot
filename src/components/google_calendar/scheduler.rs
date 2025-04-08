@@ -43,41 +43,12 @@ impl Default for GoogleCalendarScheduler {
     }
 }
 
-/// Google Calendar notification handler implementation
-struct GoogleCalendarNotificationHandler {
-    handle: GoogleCalendarHandle,
-}
-
-impl NotificationHandler for GoogleCalendarNotificationHandler {
-    fn send_daily_notification<'a>(
-        &'a self,
-        ctx: &'a serenity::Context,
-        channel_id: u64,
-    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
-        let handle = self.handle.clone();
-
-        Box::pin(async move {
-            info!("Sending daily calendar notification");
-            send_daily_notification(ctx, channel_id, &handle).await
-        })
-    }
-
-    fn send_weekly_notification<'a>(
-        &'a self,
-        ctx: &'a serenity::Context,
-        channel_id: u64,
-    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
-        let handle = self.handle.clone();
-
-        Box::pin(async move {
-            info!("Sending weekly calendar notification");
-            send_weekly_notification(ctx, channel_id, &handle).await
-        })
-    }
-}
-
 impl Scheduler for GoogleCalendarScheduler {
     type Handle = GoogleCalendarHandle;
+
+    fn component_type() -> String {
+        "google_calendar".to_string()
+    }
 
     /// Start the notification scheduler
     fn start(
@@ -115,9 +86,13 @@ impl Scheduler for GoogleCalendarScheduler {
             };
             let notification_handler = Arc::new(notification_handler);
 
+            // Get the component type
+            let component_type = Self::component_type();
+
             // Spawn task for daily/weekly notifications
             let ctx_clone = Arc::clone(&ctx);
             let handler_clone = Arc::clone(&notification_handler);
+            let component_type_clone = component_type.clone();
 
             // Only spawn the daily/weekly task if it's not already running
             if !DAILY_WEEKLY_TASK_RUNNING.swap(true, Ordering::SeqCst) {
@@ -129,6 +104,7 @@ impl Scheduler for GoogleCalendarScheduler {
                         &weekly_time,
                         channel_id,
                         handler_clone,
+                        &component_type_clone,
                     )
                     .await;
                 });
@@ -189,6 +165,43 @@ impl Scheduler for GoogleCalendarScheduler {
     }
 }
 
+/// Google Calendar notification handler implementation
+struct GoogleCalendarNotificationHandler {
+    handle: GoogleCalendarHandle,
+}
+
+impl NotificationHandler for GoogleCalendarNotificationHandler {
+    fn component_type(&self) -> String {
+        GoogleCalendarScheduler::component_type()
+    }
+
+    fn send_daily_notification<'a>(
+        &'a self,
+        ctx: &'a serenity::Context,
+        channel_id: u64,
+    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
+        let handle = self.handle.clone();
+
+        Box::pin(async move {
+            info!("Sending daily calendar notification");
+            send_daily_notification(ctx, channel_id, &handle).await
+        })
+    }
+
+    fn send_weekly_notification<'a>(
+        &'a self,
+        ctx: &'a serenity::Context,
+        channel_id: u64,
+    ) -> Pin<Box<dyn Future<Output = BotResult<()>> + Send + 'a>> {
+        let handle = self.handle.clone();
+
+        Box::pin(async move {
+            info!("Sending weekly calendar notification");
+            send_weekly_notification(ctx, channel_id, &handle).await
+        })
+    }
+}
+
 /// The main loop for daily and weekly notifications
 async fn run_daily_weekly_task(
     ctx: Arc<serenity::Context>,
@@ -196,6 +209,7 @@ async fn run_daily_weekly_task(
     weekly_time: &str,
     channel_id: u64,
     handler: Arc<dyn NotificationHandler>,
+    component_type: &str,
 ) {
     loop {
         let now = Local::now();
@@ -203,7 +217,7 @@ async fn run_daily_weekly_task(
         let (week_start_date, _) = get_weekly_date_range(&now);
 
         // Update notification flags
-        update_notification_flags(&today, &week_start_date).await;
+        update_notification_flags(&today, &week_start_date, component_type).await;
 
         // Calculate next notification times
         let next_daily = match next_notification_time(now, daily_time, false) {
@@ -225,8 +239,8 @@ async fn run_daily_weekly_task(
         };
 
         // Check if notifications were already sent
-        let daily_sent = is_notification_sent(NotificationType::Daily);
-        let weekly_sent = is_notification_sent(NotificationType::Weekly);
+        let daily_sent = is_notification_sent(NotificationType::Daily, component_type).await;
+        let weekly_sent = is_notification_sent(NotificationType::Weekly, component_type).await;
 
         // Check if the current day/week needs notifications, or if we need to wait
         let daily_today = next_daily.date_naive().format("%Y-%m-%d").to_string() == today;
@@ -248,8 +262,8 @@ async fn run_daily_weekly_task(
         };
 
         info!(
-            "Next {:?} notification scheduled for {}",
-            next_type, next_time
+            "[{}] Next {:?} notification scheduled for {}",
+            component_type, next_type, next_time
         );
 
         // Sleep until the target time
@@ -263,40 +277,65 @@ async fn run_daily_weekly_task(
         let now = Local::now();
 
         // Determine if we should send notifications
-        let send_daily = now >= next_daily && !is_notification_sent(NotificationType::Daily);
-        let send_weekly = now >= next_weekly && !is_notification_sent(NotificationType::Weekly);
+        let send_daily = now >= next_daily
+            && !is_notification_sent(NotificationType::Daily, component_type).await;
+        let send_weekly = now >= next_weekly
+            && !is_notification_sent(NotificationType::Weekly, component_type).await;
 
         // Handle daily notification
         if send_daily {
-            if try_claim_notification(NotificationType::Daily) {
-                info!("Sending daily calendar notification");
+            if try_claim_notification(NotificationType::Daily, component_type).await {
+                info!("[{}] Sending daily calendar notification", component_type);
 
                 if let Err(e) = handler.send_daily_notification(&ctx, channel_id).await {
-                    error!("Failed to send daily notification: {}", e);
-                    reset_notification_flag(NotificationType::Daily);
+                    error!(
+                        "[{}] Failed to send daily notification: {}",
+                        component_type, e
+                    );
+                    reset_notification_flag(NotificationType::Daily, component_type).await;
                 } else {
-                    info!("Successfully sent daily calendar notification");
-                    update_last_sent_date(NotificationType::Daily, &today).await;
+                    info!(
+                        "[{}] Successfully sent daily calendar notification",
+                        component_type
+                    );
+                    update_last_sent_date(NotificationType::Daily, &today, component_type).await;
                 }
             } else {
-                info!("Daily notification already claimed by another instance");
+                info!(
+                    "[{}] Daily notification already claimed by another instance",
+                    component_type
+                );
             }
         }
 
         // Handle weekly notification
         if send_weekly {
-            if try_claim_notification(NotificationType::Weekly) {
-                info!("Sending weekly calendar notification");
+            if try_claim_notification(NotificationType::Weekly, component_type).await {
+                info!("[{}] Sending weekly calendar notification", component_type);
 
                 if let Err(e) = handler.send_weekly_notification(&ctx, channel_id).await {
-                    error!("Failed to send weekly notification: {}", e);
-                    reset_notification_flag(NotificationType::Weekly);
+                    error!(
+                        "[{}] Failed to send weekly notification: {}",
+                        component_type, e
+                    );
+                    reset_notification_flag(NotificationType::Weekly, component_type).await;
                 } else {
-                    info!("Successfully sent weekly calendar notification");
-                    update_last_sent_date(NotificationType::Weekly, &week_start_date).await;
+                    info!(
+                        "[{}] Successfully sent weekly calendar notification",
+                        component_type
+                    );
+                    update_last_sent_date(
+                        NotificationType::Weekly,
+                        &week_start_date,
+                        component_type,
+                    )
+                    .await;
                 }
             } else {
-                info!("Weekly notification already claimed by another instance");
+                info!(
+                    "[{}] Weekly notification already claimed by another instance",
+                    component_type
+                );
             }
         }
 

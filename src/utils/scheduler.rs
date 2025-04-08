@@ -1,9 +1,9 @@
 use chrono::{DateTime, Local};
 use lazy_static::lazy_static;
 use poise::serenity_prelude as serenity;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
@@ -14,13 +14,13 @@ use crate::config::Config;
 use crate::error::BotResult;
 
 lazy_static! {
-    /// Track the last daily notification date
-    pub static ref LAST_DAILY_DATE: RwLock<String> = RwLock::new(String::new());
-    /// Track the last weekly notification start date
-    pub static ref LAST_WEEKLY_START_DATE: RwLock<String> = RwLock::new(String::new());
-    /// Flags to track if notifications have been sent
-    pub static ref DAILY_NOTIFICATION_SENT: AtomicBool = AtomicBool::new(false);
-    pub static ref WEEKLY_NOTIFICATION_SENT: AtomicBool = AtomicBool::new(false);
+    /// Track the last daily notification date by component type
+    pub static ref LAST_DAILY_DATES: RwLock<HashMap<String, String>> = RwLock::new(HashMap::new());
+    /// Track the last weekly notification start date by component type
+    pub static ref LAST_WEEKLY_START_DATES: RwLock<HashMap<String, String>> = RwLock::new(HashMap::new());
+    /// Flags to track if notifications have been sent by component type
+    pub static ref DAILY_NOTIFICATIONS_SENT: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
+    pub static ref WEEKLY_NOTIFICATIONS_SENT: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
 }
 
 /// Notification type
@@ -35,6 +35,10 @@ pub trait Scheduler: Send + 'static {
     /// The type of handle used by this scheduler
     type Handle: Clone + Send + Sync + 'static;
 
+    /// The component type identifier
+    #[allow(dead_code)]
+    fn component_type() -> String;
+
     /// Start the scheduler with the necessary context
     fn start(
         ctx: Arc<serenity::Context>,
@@ -48,6 +52,9 @@ pub trait Scheduler: Send + 'static {
 
 /// Common notification handler trait to be implemented by components
 pub trait NotificationHandler: Send + Sync + 'static {
+    /// Get the component type identifier
+    fn component_type(&self) -> String;
+
     /// Send a daily notification
     fn send_daily_notification<'a>(
         &'a self,
@@ -109,66 +116,125 @@ pub async fn sleep_until_target_time(target_time: DateTime<Local>) -> BotResult<
 }
 
 /// Check and update notification flags
-pub async fn update_notification_flags(today: &str, week_start_date: &str) {
+pub async fn update_notification_flags(today: &str, week_start_date: &str, component_type: &str) {
     // Reset daily notification flag if it's a new day
-    let last_daily_date = LAST_DAILY_DATE.read().await.clone();
+    let mut daily_dates = LAST_DAILY_DATES.write().await;
+    let last_daily_date = daily_dates.get(component_type).cloned().unwrap_or_default();
     if last_daily_date != today {
         debug!(
-            "New day detected ({}), resetting daily notification flag",
-            today
+            "[{}] New day detected ({}), resetting daily notification flag",
+            component_type, today
         );
-        DAILY_NOTIFICATION_SENT.store(false, Ordering::SeqCst);
-        *LAST_DAILY_DATE.write().await = today.to_string();
+        DAILY_NOTIFICATIONS_SENT
+            .write()
+            .await
+            .insert(component_type.to_string(), false);
+        daily_dates.insert(component_type.to_string(), today.to_string());
     }
 
     // Reset weekly notification flag if it's a new week
-    let last_weekly_start = LAST_WEEKLY_START_DATE.read().await.clone();
+    let mut weekly_dates = LAST_WEEKLY_START_DATES.write().await;
+    let last_weekly_start = weekly_dates
+        .get(component_type)
+        .cloned()
+        .unwrap_or_default();
     if last_weekly_start != week_start_date {
         debug!(
-            "New week detected (starting {}), resetting weekly notification flag",
-            week_start_date
+            "[{}] New week detected (starting {}), resetting weekly notification flag",
+            component_type, week_start_date
         );
-        WEEKLY_NOTIFICATION_SENT.store(false, Ordering::SeqCst);
-        *LAST_WEEKLY_START_DATE.write().await = week_start_date.to_string();
+        WEEKLY_NOTIFICATIONS_SENT
+            .write()
+            .await
+            .insert(component_type.to_string(), false);
+        weekly_dates.insert(component_type.to_string(), week_start_date.to_string());
     }
 }
 
 /// Try to claim a notification slot to prevent duplicates
-pub fn try_claim_notification(notification_type: NotificationType) -> bool {
+pub async fn try_claim_notification(
+    notification_type: NotificationType,
+    component_type: &str,
+) -> bool {
     match notification_type {
-        NotificationType::Daily => DAILY_NOTIFICATION_SENT
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok(),
-        NotificationType::Weekly => WEEKLY_NOTIFICATION_SENT
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok(),
+        NotificationType::Daily => {
+            let mut daily_sent = DAILY_NOTIFICATIONS_SENT.write().await;
+            if daily_sent.get(component_type).cloned().unwrap_or(false) {
+                false
+            } else {
+                daily_sent.insert(component_type.to_string(), true);
+                true
+            }
+        }
+        NotificationType::Weekly => {
+            let mut weekly_sent = WEEKLY_NOTIFICATIONS_SENT.write().await;
+            if weekly_sent.get(component_type).cloned().unwrap_or(false) {
+                false
+            } else {
+                weekly_sent.insert(component_type.to_string(), true);
+                true
+            }
+        }
     }
 }
 
 /// Reset notification flag if sending failed
-pub fn reset_notification_flag(notification_type: NotificationType) {
+pub async fn reset_notification_flag(notification_type: NotificationType, component_type: &str) {
     match notification_type {
-        NotificationType::Daily => DAILY_NOTIFICATION_SENT.store(false, Ordering::SeqCst),
-        NotificationType::Weekly => WEEKLY_NOTIFICATION_SENT.store(false, Ordering::SeqCst),
+        NotificationType::Daily => {
+            DAILY_NOTIFICATIONS_SENT
+                .write()
+                .await
+                .insert(component_type.to_string(), false);
+        }
+        NotificationType::Weekly => {
+            WEEKLY_NOTIFICATIONS_SENT
+                .write()
+                .await
+                .insert(component_type.to_string(), false);
+        }
     }
 }
 
 /// Check if a notification has already been sent
-pub fn is_notification_sent(notification_type: NotificationType) -> bool {
+pub async fn is_notification_sent(
+    notification_type: NotificationType,
+    component_type: &str,
+) -> bool {
     match notification_type {
-        NotificationType::Daily => DAILY_NOTIFICATION_SENT.load(Ordering::SeqCst),
-        NotificationType::Weekly => WEEKLY_NOTIFICATION_SENT.load(Ordering::SeqCst),
+        NotificationType::Daily => DAILY_NOTIFICATIONS_SENT
+            .read()
+            .await
+            .get(component_type)
+            .cloned()
+            .unwrap_or(false),
+        NotificationType::Weekly => WEEKLY_NOTIFICATIONS_SENT
+            .read()
+            .await
+            .get(component_type)
+            .cloned()
+            .unwrap_or(false),
     }
 }
 
 /// Update the last sent date after successful notification
-pub async fn update_last_sent_date(notification_type: NotificationType, date: &str) {
+pub async fn update_last_sent_date(
+    notification_type: NotificationType,
+    date: &str,
+    component_type: &str,
+) {
     match notification_type {
         NotificationType::Daily => {
-            *LAST_DAILY_DATE.write().await = date.to_string();
+            LAST_DAILY_DATES
+                .write()
+                .await
+                .insert(component_type.to_string(), date.to_string());
         }
         NotificationType::Weekly => {
-            *LAST_WEEKLY_START_DATE.write().await = date.to_string();
+            LAST_WEEKLY_START_DATES
+                .write()
+                .await
+                .insert(component_type.to_string(), date.to_string());
         }
     }
 }
