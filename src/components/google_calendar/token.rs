@@ -32,13 +32,15 @@ impl TokenManager {
         let token_result = self.redis_handle.get_token().await?;
 
         if let Some(token) = token_result {
-            // Check if token is expired
+            // Check if token is expired or expires soon
             if let Some(expiry) = token.get("expires_at").and_then(|v| v.as_i64()) {
                 let now = Utc::now().timestamp();
-                if expiry > now {
+                let buffer_seconds = 300; // 5 minutes buffer
+                if expiry > now + buffer_seconds {
+                    // Token is still valid for a reasonable time
                     return Ok(token);
                 }
-                // Token is expired, refresh it
+                // Token is expired or will expire soon, refresh it
                 return self.refresh_token(&token).await;
             }
         }
