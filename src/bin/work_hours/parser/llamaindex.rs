@@ -41,25 +41,47 @@ pub struct LlamaRawResult {
 }
 
 /// Prompt for the LlamaIndex scheduling extraction
-pub const PROMPT: &str = "**Strict Extraction Rules for output value:**
+pub const PROMPT: &str = r#"**Objective:** Extract the work schedule information from the provided image grid, focusing precisely and literally on the primary content within each employee/date cell.
 
-1.  **Primary Content Focus:** The output value MUST be the **primary content** visible in the cell corresponding to the specific employee and date. Many cells contain a primary entry (time, code, or text) written *above* a secondary numerical value (like 8, 7.5, 8.25, 8,5). **You MUST IGNORE the secondary numerical value below.** Use ONLY the primary entry found at the top/main part of the cell.
-    *   *Example:* If a cell shows \"12-20.30\" on top and \"8,5\" below it, the correct output output is `\"12-20.30\"`.
-    *   *Example:* If a cell shows \"vp\" on top and \"8\" below it, the correct output output is `\"vp\"`.
+**Key Principles:**
 
-2.  **Time Ranges:** If the primary content is a time range (e.g., \"7-15\", \"12-20.30\", \"7.30-15.30\", \"8.35-16\", \"9-17L\"), use that exact string as the output value.
-    *   **Normalize Commas:** If a time contains a comma, replace it with a period (e.g., \"7,30-15.30\" becomes \"7.30-15.30\").
+1.  **Primary Content Area Only:** Focus *exclusively* on the content physically located *within* the primary/main cell area.
+2.  **Ignore Separate Lower Number:** **Absolutely disregard** the small number often found distinctly *below* the main schedule entry (e.g., `8`, `7.5`, `8,25`). This lower number is **NOT** part of the primary content to be extracted.
+3.  **Literal & Exact Transcription - Meticulous Detail Required:** Extract the primary content *exactly* as it appears, character for character. **Any variation, including suffixes (like `L`), different spacing, or capitalization, constitutes a distinct entry.** Do NOT normalize, simplify, or assume equivalence between visually similar cells.
+4.  **Single Characters ARE Primary Content:** **Explicitly recognize that single letters (like `v`, `x`, `S`) or simple codes (`vv`, `vp`, `VL`) ARE valid and essential primary content** when they appear in the main cell area. Treat them as significant data, not noise or blanks.
+5.  **Absolute Cell Independence:** Treat every single cell in the grid as a completely separate unit. **Its content must be determined solely by what is visually present within its primary area,** without reference to adjacent cells or assumed patterns.
 
-3.  **Codes:** If the primary content is only a code (e.g., \"x\", \"v\", \"vv\", \"VL\", \"S\", \"tst\"), use that exact code string as the output value.
+**Extraction Instructions:**
 
-4.  **Text / Combined Entries:**
-    *   If the primary content is text (e.g., \"Toive\", \"Palkat\", \"kuor\"), use that text string.
-    *   If the primary content spans multiple lines within the main entry area (e.g., \"Pai-\" on one line and \"kalla\" below it), combine them into a single string with a hyphen or space as appropriate based on visual context (e.g., \"Pai-kalla\").
-    *   If the primary content includes text combined with a code (e.g., \"Toive\" written above \"vp\"), represent this combination accurately, perhaps as \"Toive vp\". Capture the full primary content.
+1.  **Identify Primary Content:** For each cell (intersection of an employee row and a date column), identify *all* information located *within* the **primary content area**, specifically *excluding* the separate number positioned clearly below it.
+2.  **Extract Content Literally (Character-by-Character):**
+    *   **Time Ranges:** e.g., `7-15`, `12-20.30`, `7.30-15.30`, `9-17`, `9-17L`. Extract *exactly* as written. **Crucially, include any suffixes like `L` as part of the extracted string.** Convert comma decimals to periods (`7,30` becomes `7.30`).
+    *   **Codes:** e.g., `x`, `v`, `vv`, `vp`, `tst`, `VL`, `S`. **Single letters like `v` or `x`, when present in the primary area, MUST be extracted exactly as seen.**
+    *   **Text:** e.g., `Toive`, `Palkat`, `Paikalla`. If text spans multiple lines within the primary area (like "Pai-" above "kalla"), combine them (`Paikalla`). Extract exact text and capitalization.
+    *   **Combinations:** e.g., `Toive vp`. Extract the combination exactly as written.
 
-5.  **Empty Cells:** If the cell for a specific employee on a specific date is **visually blank or contains no primary text/code/time entry** (even if there might be a secondary number below, which should be ignored anyway per Rule 1), the output value MUST be an empty string `\"\"`. This applies to *any* day within the identified date range, including potentially empty days at the start, middle, or end of an employee's schedule row for the displayed period.
+3.  **Mandatory Independent Cell Processing (Strict Enforcement):**
+    *   Process each cell in isolation.
+    *   **CRITICAL:** If two cells contain primary content that differs *in any way* (e.g., one cell has `9-17` and an adjacent cell has `9-17L`), they MUST be extracted as two separate, distinct entries (`"9-17"` and `"9-17L"` respectively). **DO NOT MERGE or treat them as the same entry due to similarity.** Pay meticulous attention to suffixes or minor variations; they define unique entries.
 
-6.  **Accuracy:** Ensure correct mapping between the employee row, the date column, and the extracted cell content. Ignore the header rows/columns containing week numbers, day names, legends, and the final \"Yht.\" (total hours) column. Process *all* employees listed vertically in the first column.";
+4.  **Handling Blanks and Codes (Clarified):**
+    *   If the **primary content area of a cell contains *any* visible mark, text, code, or time range** (e.g., a single `v` or `x`, or a time range), extract that content exactly.
+    *   Only if the **primary content area of a cell is completely visually empty** (contains absolutely no markings, codes, text, or times, *excluding* the lower number) should you represent it with an empty string (`""`).
+
+**Scope:**
+
+*   Process only the main grid containing employee names down the rows and dates across the columns.
+*   Ignore headers (week numbers, dates, days of the week, abbreviations like "Lyhenteet").
+*   Ignore summary columns/rows (like the final "Yht." column or similar totals).
+
+**Final Check:** Before outputting:
+*   Did you extract *only* the primary content area for every cell?
+*   Is the separate lower number *completely absent* from your output?
+*   Did you specifically check for and extract single-letter codes (e.g., `v`, `x`) when they are the *only* content in the primary cell area? Are they correctly distinguished from truly blank cells?
+*   Are cells with truly empty primary content areas represented by `""`?
+*   **Did you ensure that visually similar entries in different cells (e.g., `9-17` vs `9-17L`) were preserved as distinct, separate values based on their exact characters? Were suffixes like `L` correctly included?**
+*   Did you process *all* relevant cells independently from the start to the end of each employee's row within the date range?
+"#;
 
 /// Parse a schedule image using LlamaIndex parsing service
 pub async fn parse_schedule_image(
@@ -82,13 +104,11 @@ pub async fn parse_schedule_image(
         // Create the multipart form
         let form = multipart::Form::new()
             .text("user_prompt", PROMPT)
-            .text("premium_mode", "true")
-            .text("add_system_prompt", "true")
-            .text("disable_image_extraction", "true")
-            .text("is_formatting_instruction", "true")
             .text("structured_output", "false")
             .text("disable_ocr", "false")
+            .text("disable_image_extraction", "true")
             .text("adaptive_long_table", "false")
+            .text("compact_markdown_table", "false")
             .text("annotate_links", "false")
             .text("do_not_unroll_columns", "false")
             .text("html_make_all_elements_visible", "false")
@@ -98,8 +118,12 @@ pub async fn parse_schedule_image(
             .text("do_not_cache", "true")
             .text("invalidate_cache", "false")
             .text("output_pdf_of_document", "false")
+            .text("save_images", "false")
             .text("take_screenshot", "false")
-            .text("spreadsheet_extract_sub_tables", "false")
+            .text("is_formatting_instruction", "true")
+            .text("premium_mode", "true")
+            .text("page_error_tolerance", "0.05")
+            .text("system_prompt_append", "You parse work schedules that are delivered as photos of printed excel sheets")
             .part(
                 "file",
                 multipart::Part::bytes(image_data.to_vec())
@@ -187,8 +211,9 @@ pub async fn parse_schedule_image(
                                         current_year
                                     );
 
-                                    // Pass employee_name to rig_parser
+                                    // Pass image_data, markdown_text, employee_name, current_year, and None to rig_parser
                                     match rig_parser::parse_with_rig(
+                                        image_data,
                                         &markdown_text,
                                         employee_name,
                                         current_year as u32,
@@ -256,8 +281,9 @@ pub async fn parse_schedule_image(
                         current_year
                     );
 
-                    // Pass employee_name to rig_parser
+                    // Pass image_data, raw_text, employee_name, current_year, and None to rig_parser
                     match rig_parser::parse_with_rig(
+                        image_data,
                         &raw_result.raw_text,
                         employee_name,
                         current_year,
@@ -325,7 +351,13 @@ pub async fn parse_schedule_image(
 
                 convert_to_work_schedule(employee_name, extracted_days)
             }
-            "failed" => {
+            "failed" | "FAILED" => {
+                let error_msg = result
+                    .error_message
+                    .unwrap_or_else(|| "Unknown error".to_string());
+                Err(format!("LlamaIndex job failed: {}", error_msg))
+            }
+            "ERROR" | "error" => {
                 let error_msg = result
                     .error_message
                     .unwrap_or_else(|| "Unknown error".to_string());
@@ -378,7 +410,7 @@ pub async fn poll_job_until_complete(
             .map_err(|e| format!("Failed to parse job status: {}", e))?;
 
         match job_result.status.as_str() {
-            "completed" | "COMPLETED" | "SUCCESS" | "success" | "failed" | "FAILED" => {
+            "completed" | "COMPLETED" | "SUCCESS" | "success" | "failed" | "FAILED" | "ERROR" | "error" => {
                 println!("Debug: Job status final: {}", job_result.status);
                 return Ok(job_result);
             }

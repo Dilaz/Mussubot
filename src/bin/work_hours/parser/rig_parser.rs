@@ -1,40 +1,89 @@
 use crate::model::WorkDayExtraction;
 use rig::completion::{Chat, Message};
+use rig::message::{Image, ContentFormat, ImageMediaType};
 use rig::providers::gemini::Client as GeminiClient;
 use serde_json::from_str;
 use std::env;
 use tracing::{error, info};
+use base64::{self, engine::Engine};
 
 const SYSTEM_PROMPT: &str = "You are a work schedule parser. You need to analyze the given text that describes work schedules and extract dates and work hours information. Output your findings as a JSON array with each entry containing a date and work_hours fields.";
 
-const USER_PROMPT_TEMPLATE: &str = "Analyze the provided text which contains a work schedule in a table-like format.
-Identify the row corresponding to the employee named {name}.
+const USER_PROMPT_TEMPLATE: &str = r#"**Task:** Generate Employee Schedule JSON Directly from Image, Using Provided Markdown as a Guide
 
-The schedule covers a specific period (e.g., March 3rd to March 23rd, {year}). The columns represent specific dates, often indicated by D.M. format (e.g., 3.3., 4.3., ..., 23.3.) within the header row. Assume the year is {year} unless otherwise specified in the header.
+**Context:**
+You are provided with:
+1.  An original work schedule **image**. This is the **ABSOLUTE SOURCE OF TRUTH**.
+2.  A **preliminary markdown table** (provided at the end of this prompt). This table was extracted previously and **MAY CONTAIN ERRORS**. Use it **only** as a navigational aid.
+3.  A **Target Employee** name (`[EMPLOYEE_NAME]`).
+4.  The relevant **Year** (`[YEAR]`).
 
-For the identified employee {name}, iterate through each column that represents a specific date within the schedule's range.
-1.  Extract the date from the column header. Convert the D.M. format to YYYY-MM-DD format using the year {year}. Handle single-digit days and months by padding with a zero (e.g., 3.3. becomes {year}-03-03, 10.3. becomes {year}-03-10).
-2.  Extract the corresponding value from the cell in the employee's row for that specific date column. This value represents the work assignment or status for that day (e.g., '7-15', 'v', 'x', 'S', 'Pai-kalla', 'Toive vp', empty).
+**Your Goal:**
+Produce a **correct** JSON schedule for the **Target Employee** by performing a **fresh extraction directly from the IMAGE**. Do **NOT** simply copy or correct the values from the provided preliminary markdown table.
 
-Generate a JSON array containing objects for each day's entry found for {name}. Each object must adhere *strictly* to the following format:
-[{
-  \"date\": \"YYYY-MM-DD\",
-  \"work_hours\": \"VALUE_FROM_CELL\"
-}]
+**Extraction Process:**
 
-Do not include columns that do not represent a specific date (like week numbers, descriptive headers like 'Työtunnit', 'Yht.').
-Ensure the output contains *only* the JSON array structure as specified. Do not include any introductory text, explanations, variable assignments, or any other text outside the JSON array in your response. The response must start with `[` and end with `]`.
+1.  **Identify Target Row in Image:** Locate the row corresponding to the **Target Employee** (`[EMPLOYEE_NAME]`) **in the provided image**. You can use the preliminary markdown table below to help find the correct row visually, but the image is your reference.
+2.  **Identify Date Columns in Image:** Identify the date columns relevant to the schedule period shown **in the image headers** (e.g., '14.4.', '15.4.', '16.4.', etc.).
+3.  **Direct Image Extraction per Cell:** For each relevant date column identified in step 2:
+    *   **Locate the specific cell** in the **IMAGE** at the intersection of the Target Employee's row and the current date column.
+    *   **Analyze the Image Cell Content:** Apply the **Strict Extraction Rules** (see below) to the **primary content** visible within this specific image cell.
+    *   **Determine the `work_hours` Value:** The value you extract following these rules **directly from the image cell** is the definitive `work_hours` value. **DO NOT use the value from the preliminary markdown table for this.**
+    *   **Format Date:** Combine the date from the image column header (e.g., '14.4.') with the `[YEAR]` to create the "YYYY-MM-DD" format (e.g., "[YEAR]-04-14").
+    *   **Create JSON Object:** Construct a JSON object: `{ "date": "YYYY-MM-DD", "work_hours": "IMAGE_EXTRACTED_VALUE" }`.
+4.  **Compile JSON Array:** Collect all the generated JSON objects for the employee into a single JSON array.
 
-Text to parse:
-{markdown}";
+**Strict Extraction Rules (Apply ONLY to the IMAGE):**
 
-/// Parse markdown text using Rig with Google Gemini
+1.  **Primary Content is King:** Extract *only* the main content written in the upper/primary part of the image cell.
+2.  **IGNORE Secondary Bottom Number:** **CRITICAL:** Completely ignore any smaller number (like `8`, `7.5`, `8,25`) written *below* the primary entry in the image cell. Do not include it in the `work_hours` value.
+3.  **Exactness is Required:**
+    *   Extract times, codes, and text *exactly* as they appear in the primary area of the image cell.
+    *   Treat variations like "9-17" and "9-17L" as distinct entries if they appear that way in different image cells.
+    *   Normalize comma decimals in times to periods (e.g., image "7,30-..." becomes "7.30-...").
+4.  **Capture ALL Entries (Including Single Letters):** If the primary content in the image cell is a code (e.g., "x", "v", "vv", "VL", "S", "tst", "vp"), that code *is* the value. **Ensure single characters like "v" or "x" are captured.**
+5.  **Text and Combinations:** Extract text ("Toive"), combined lines ("Pai-kalla" -> "Paikalla"), or combined text/codes ("Toive vp") precisely as seen in the primary area of the image cell.
+6.  **Visually Blank Cells:** If the primary content area of the **image cell** is visually empty for the target employee on a specific date, the extracted `work_hours` value MUST be an empty string `""`.
+
+**Role of Preliminary Markdown:**
+*   Use the preliminary markdown table provided below **only** to help you visually locate the correct employee row and understand the general sequence of dates.
+*   **DO NOT** treat the `work_hours` values within the markdown as correct. Your `work_hours` output MUST come from your **independent analysis of the image** based on the rules above.
+
+**JSON Output Format:**
+*   Output MUST be a single JSON array `[...]`.
+*   Each element MUST be an object: `{ "date": "YYYY-MM-DD", "work_hours": "value_extracted_from_image" }`.
+*   Include an object for every relevant date column processed for the employee.
+
+**Example Object:**
+```json
+{
+  "date": "[YEAR]-04-17",
+  "work_hours": "v"
+}
+```
+
+**Strict Output Constraint:**
+Provide **only** the final JSON array as the output. Do not include any introductory text, explanations, markdown formatting (like `json ...`), or comments before or after the JSON data. Just the raw JSON array string starting with `[` and ending with `]`.
+
+Preliminary Markdown Table (Use for Navigation/Guidance Only - May Contain Errors):
+
+```markdown
+[PRELIMINARY_MARKDOWN]
+```
+"#;
+
+const MARKDOWN_PLACEHOLDER: &str = "[PRELIMINARY_MARKDOWN]";
+const NAME_PLACEHOLDER: &str = "[EMPLOYEE_NAME]";
+const YEAR_PLACEHOLDER: &str = "[YEAR]";
+
+/// Parse markdown and image using Rig with Google Gemini
 pub async fn parse_with_rig(
+    image_data: &[u8],
     markdown: &str,
     name: &str,
     year: u32,
 ) -> Result<Vec<WorkDayExtraction>, String> {
-    info!("Parsing markdown with Rig and Google Gemini");
+    info!("Parsing work schedule with Rig and Google Gemini");
 
     // Get API key from environment variable
     let api_key = env::var("GEMINI_API_KEY")
@@ -47,22 +96,34 @@ pub async fn parse_with_rig(
     // Initialize Gemini client with API key
     let gemini_client = GeminiClient::new(&api_key);
 
+    // Base64 encode the image
+    let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);
+
+    let image = Image {
+        data: base64_image,
+        media_type: Some(ImageMediaType::JPEG),
+        format: Some(ContentFormat::Base64),
+        detail: None,
+    };
+    let messages = vec![Message::from(image)];
+
     // Prepare the prompt for Gemini
     let user_prompt = USER_PROMPT_TEMPLATE
-        .replace("{name}", name)
-        .replace("{year}", &year.to_string())
-        .replace("{markdown}", markdown);
+        .replace(MARKDOWN_PLACEHOLDER, markdown)
+        .replace(NAME_PLACEHOLDER, name)
+        .replace(YEAR_PLACEHOLDER, &year.to_string());
+
 
     // Create chat messages
     let agent = gemini_client
         .agent(&model)
         .preamble(SYSTEM_PROMPT)
-        .temperature(0.2)
+        .temperature(0.0)
         .build();
 
     // Make the request to Gemini directly using the existing runtime
     let response = agent
-        .chat(user_prompt, Vec::<Message>::new())
+        .chat(user_prompt, messages)
         .await
         .map_err(|e| format!("Rig API request failed: {}", e))?;
 
