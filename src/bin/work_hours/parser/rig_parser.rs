@@ -1,11 +1,11 @@
 use crate::model::WorkDayExtraction;
+use base64::{self, engine::Engine};
 use rig::completion::{Chat, Message};
-use rig::message::{Image, ContentFormat, ImageMediaType};
+use rig::message::{ContentFormat, Image, ImageMediaType};
 use rig::providers::gemini::Client as GeminiClient;
 use serde_json::from_str;
 use std::env;
 use tracing::{error, info};
-use base64::{self, engine::Engine};
 
 const SYSTEM_PROMPT: &str = "You are a work schedule parser. You need to analyze the given text that describes work schedules and extract dates and work hours information. Output your findings as a JSON array with each entry containing a date and work_hours fields.";
 
@@ -112,7 +112,6 @@ pub async fn parse_with_rig(
         .replace(MARKDOWN_PLACEHOLDER, markdown)
         .replace(NAME_PLACEHOLDER, name)
         .replace(YEAR_PLACEHOLDER, &year.to_string());
-
 
     // Create chat messages
     let agent = gemini_client

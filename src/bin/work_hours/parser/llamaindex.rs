@@ -123,7 +123,10 @@ pub async fn parse_schedule_image(
             .text("is_formatting_instruction", "true")
             .text("premium_mode", "true")
             .text("page_error_tolerance", "0.05")
-            .text("system_prompt_append", "You parse work schedules that are delivered as photos of printed excel sheets")
+            .text(
+                "system_prompt_append",
+                "You parse work schedules that are delivered as photos of printed excel sheets",
+            )
             .part(
                 "file",
                 multipart::Part::bytes(image_data.to_vec())
@@ -410,7 +413,8 @@ pub async fn poll_job_until_complete(
             .map_err(|e| format!("Failed to parse job status: {}", e))?;
 
         match job_result.status.as_str() {
-            "completed" | "COMPLETED" | "SUCCESS" | "success" | "failed" | "FAILED" | "ERROR" | "error" => {
+            "completed" | "COMPLETED" | "SUCCESS" | "success" | "failed" | "FAILED" | "ERROR"
+            | "error" => {
                 println!("Debug: Job status final: {}", job_result.status);
                 return Ok(job_result);
             }
