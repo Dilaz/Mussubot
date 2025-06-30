@@ -104,7 +104,7 @@ BOT_ACTIVITY=DOTA2
 
 # Gemini AI Configuration (legacy, now replaced by LlamaIndex)
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-pro-exp-03-25
+GEMINI_MODEL=gemini-2.5-pro
 
 # LlamaIndex API Configuration
 LLAMA_API_KEY=your_llama_api_key_here

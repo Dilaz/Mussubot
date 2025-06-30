@@ -90,7 +90,7 @@ pub async fn parse_with_rig(
         .map_err(|_| "GEMINI_API_KEY environment variable not set".to_string())?;
 
     // Get model name from environment variable
-    let model = env::var("GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro-exp-03-25".to_string());
+    let model = env::var("GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
     info!("Using Gemini model: {}", model);
 
     // Initialize Gemini client with API key
