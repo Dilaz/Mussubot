@@ -94,7 +94,7 @@ impl TokenManager {
             )));
         }
 
-        let new_token: Value = response
+        let mut new_token: Value = response
             .json()
             .await
             .map_err(|e| google_calendar_error(&format!("Failed to parse token response: {e}")))?;
@@ -106,28 +106,28 @@ impl TokenManager {
             ));
         }
 
-        // Combine new access token with existing refresh token
-        let mut token_data = serde_json::Map::new();
-        token_data.insert(
-            "access_token".to_string(),
-            new_token.get("access_token").cloned().unwrap(),
-        );
-        token_data.insert("refresh_token".to_string(), json!(refresh_token));
+        // If the new token response doesn't contain a refresh token, reuse the old one.
+        if new_token.get("refresh_token").is_none() {
+            if let Some(map) = new_token.as_object_mut() {
+                map.insert("refresh_token".to_string(), json!(refresh_token));
+            }
+        }
 
-        // Calculate expiry
+        // Calculate and add expiry timestamp
         let expires_in = new_token
             .get("expires_in")
             .and_then(|v| v.as_i64())
             .unwrap_or(3600);
         let expires_at = Utc::now().timestamp() + expires_in;
-        token_data.insert("expires_at".to_string(), json!(expires_at));
+        if let Some(map) = new_token.as_object_mut() {
+            map.insert("expires_at".to_string(), json!(expires_at));
+        }
 
         // Save token to Redis using the Redis actor
-        let token_json = json!(token_data);
-        self.redis_handle.save_token(token_json.clone()).await?;
+        self.redis_handle.save_token(new_token.clone()).await?;
 
         // Return the refreshed token
-        Ok(token_json)
+        Ok(new_token)
     }
 
     /// Manually set token in Redis (to be called from an admin command)
