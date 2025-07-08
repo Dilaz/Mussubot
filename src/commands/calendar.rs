@@ -77,8 +77,7 @@ pub async fn this_week(
             )
             .await?;
             return Err(google_calendar_error(&format!(
-                "Invalid timezone: {}",
-                timezone_str
+                "Invalid timezone: {timezone_str}"
             )));
         }
     };
@@ -164,7 +163,7 @@ pub async fn this_week(
                 t!("calendar_all_day").to_string()
             };
 
-            message.push_str(&format!("• **{}** - {}\n", start_time, title));
+            message.push_str(&format!("• **{start_time}** - {title}\n"));
         }
     }
 

@@ -29,7 +29,7 @@ impl RedisDB {
         info!("Connecting to Redis at {}", redis_url);
 
         let client = RedisClient::open(redis_url)
-            .map_err(|e| format!("Failed to create Redis client: {}", e))?;
+            .map_err(|e| format!("Failed to create Redis client: {e}"))?;
 
         Ok(Self { client })
     }
@@ -39,7 +39,7 @@ impl RedisDB {
         self.client
             .get_multiplexed_async_connection()
             .await
-            .map_err(|e| format!("Failed to connect to Redis: {}", e))
+            .map_err(|e| format!("Failed to connect to Redis: {e}"))
     }
 }
 
@@ -55,7 +55,7 @@ impl WorkHoursDb for RedisDB {
         let exists: bool = conn
             .exists(&key)
             .await
-            .map_err(|e| format!("Redis EXISTS error: {}", e))?;
+            .map_err(|e| format!("Redis EXISTS error: {e}"))?;
 
         if !exists {
             return Ok(None);
@@ -65,11 +65,11 @@ impl WorkHoursDb for RedisDB {
         let data: String = conn
             .get(&key)
             .await
-            .map_err(|e| format!("Redis GET error: {}", e))?;
+            .map_err(|e| format!("Redis GET error: {e}"))?;
 
         // Parse the JSON
         let schedule: WorkSchedule =
-            serde_json::from_str(&data).map_err(|e| format!("JSON parse error: {}", e))?;
+            serde_json::from_str(&data).map_err(|e| format!("JSON parse error: {e}"))?;
 
         Ok(Some(schedule))
     }
@@ -84,24 +84,24 @@ impl WorkHoursDb for RedisDB {
 
         // Serialize the schedule
         let json = serde_json::to_string(schedule)
-            .map_err(|e| format!("JSON serialization error: {}", e))?;
+            .map_err(|e| format!("JSON serialization error: {e}"))?;
 
         // Store the main schedule
         let key = format!("{}{}", keys::WORK_HOURS_SCHEDULE_PREFIX, employee_name);
 
         conn.set::<_, _, ()>(&key, &json)
             .await
-            .map_err(|e| format!("Redis SET error: {}", e))?;
+            .map_err(|e| format!("Redis SET error: {e}"))?;
 
         // Set expiry for the schedule key
         conn.expire::<_, ()>(&key, keys::EXPIRY_SECONDS)
             .await
-            .map_err(|e| format!("Redis EXPIRE error: {}", e))?;
+            .map_err(|e| format!("Redis EXPIRE error: {e}"))?;
 
         // Add to the set of employees
         conn.sadd::<_, _, ()>(keys::WORK_HOURS_EMPLOYEES, employee_name)
             .await
-            .map_err(|e| format!("Redis SADD error: {}", e))?;
+            .map_err(|e| format!("Redis SADD error: {e}"))?;
 
         // Store individual days for quick access
         let dates_key = format!("{}{}", keys::WORK_HOURS_DATES_PREFIX, employee_name);
@@ -110,7 +110,7 @@ impl WorkHoursDb for RedisDB {
             // Add to the set of dates
             conn.sadd::<_, _, ()>(&dates_key, &day.date)
                 .await
-                .map_err(|e| format!("Redis SADD error: {}", e))?;
+                .map_err(|e| format!("Redis SADD error: {e}"))?;
 
             // Store the individual day data
             let day_key = format!(
@@ -120,22 +120,22 @@ impl WorkHoursDb for RedisDB {
                 day.date
             );
             let day_json = serde_json::to_string(day)
-                .map_err(|e| format!("JSON day serialization error: {}", e))?;
+                .map_err(|e| format!("JSON day serialization error: {e}"))?;
 
             conn.set::<_, _, ()>(&day_key, &day_json)
                 .await
-                .map_err(|e| format!("Redis SET error: {}", e))?;
+                .map_err(|e| format!("Redis SET error: {e}"))?;
 
             // Set expiry for each day key
             conn.expire::<_, ()>(&day_key, keys::EXPIRY_SECONDS)
                 .await
-                .map_err(|e| format!("Redis EXPIRE error: {}", e))?;
+                .map_err(|e| format!("Redis EXPIRE error: {e}"))?;
         }
 
         // Set expiry for the dates key
         conn.expire::<_, ()>(&dates_key, keys::EXPIRY_SECONDS)
             .await
-            .map_err(|e| format!("Redis EXPIRE error: {}", e))?;
+            .map_err(|e| format!("Redis EXPIRE error: {e}"))?;
 
         info!(
             "Stored schedule for {} with {} days",
@@ -153,7 +153,7 @@ impl WorkHoursDb for RedisDB {
         let employees: Vec<String> = conn
             .smembers(keys::WORK_HOURS_EMPLOYEES)
             .await
-            .map_err(|e| format!("Redis SMEMBERS error: {}", e))?;
+            .map_err(|e| format!("Redis SMEMBERS error: {e}"))?;
 
         Ok(employees)
     }
@@ -168,7 +168,7 @@ impl WorkHoursDb for RedisDB {
         let dates: Vec<String> = conn
             .smembers(&dates_key)
             .await
-            .map_err(|e| format!("Redis SMEMBERS error: {}", e))?;
+            .map_err(|e| format!("Redis SMEMBERS error: {e}"))?;
 
         // Delete each day's data
         for date in &dates {
@@ -176,25 +176,25 @@ impl WorkHoursDb for RedisDB {
 
             conn.del::<_, ()>(&day_key)
                 .await
-                .map_err(|e| format!("Redis DEL error: {}", e))?;
+                .map_err(|e| format!("Redis DEL error: {e}"))?;
         }
 
         // Delete the dates set
         conn.del::<_, ()>(&dates_key)
             .await
-            .map_err(|e| format!("Redis DEL error: {}", e))?;
+            .map_err(|e| format!("Redis DEL error: {e}"))?;
 
         // Delete the main schedule
         let schedule_key = format!("{}{}", keys::WORK_HOURS_SCHEDULE_PREFIX, employee_name);
 
         conn.del::<_, ()>(&schedule_key)
             .await
-            .map_err(|e| format!("Redis DEL error: {}", e))?;
+            .map_err(|e| format!("Redis DEL error: {e}"))?;
 
         // Remove from the employees set
         conn.srem::<_, _, ()>(keys::WORK_HOURS_EMPLOYEES, employee_name)
             .await
-            .map_err(|e| format!("Redis SREM error: {}", e))?;
+            .map_err(|e| format!("Redis SREM error: {e}"))?;
 
         info!("Deleted schedule for {}", employee_name);
         Ok(())

@@ -19,7 +19,7 @@ impl MockRedis {
     /// Save events to the mock Redis
     pub async fn save_events(&self, events: Vec<CalendarEvent>) -> BotResult<()> {
         let events_json = serde_json::to_string(&events)
-            .map_err(|e| google_calendar_error(&format!("Failed to serialize events: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to serialize events: {e}")))?;
         let mut data = self.data.lock().await;
         data.insert("google_calendar_events".to_string(), events_json);
         Ok(())
@@ -31,7 +31,7 @@ impl MockRedis {
 
         if let Some(events_json) = data.get("google_calendar_events") {
             let events: Vec<CalendarEvent> = serde_json::from_str(events_json).map_err(|e| {
-                google_calendar_error(&format!("Failed to deserialize events: {}", e))
+                google_calendar_error(&format!("Failed to deserialize events: {e}"))
             })?;
             Ok(events)
         } else {
@@ -53,7 +53,7 @@ impl MockRedis {
 
         if let Some(token_json) = data.get("google_calendar_token") {
             let token: serde_json::Value = serde_json::from_str(token_json).map_err(|e| {
-                google_calendar_error(&format!("Failed to deserialize token: {}", e))
+                google_calendar_error(&format!("Failed to deserialize token: {e}"))
             })?;
             Ok(Some(token))
         } else {

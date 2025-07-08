@@ -33,14 +33,13 @@ async fn main() -> BotResult<()> {
     // Construct authorization URL
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
-        client_id={}&\
+        client_id={client_id}&\
         redirect_uri=http://localhost:8080&\
         response_type=code&\
         access_type=offline&\
         prompt=consent&\
         scope=https://www.googleapis.com/auth/calendar.readonly&\
-        state={}",
-        client_id, state
+        state={state}"
     );
 
     // Open browser for authorization
@@ -80,7 +79,7 @@ async fn main() -> BotResult<()> {
 
     if !response.status().is_success() {
         let error_text = response.text().await?;
-        return Err(other_error(&format!("Failed to get token: {}", error_text)));
+        return Err(other_error(&format!("Failed to get token: {error_text}")));
     }
 
     let mut token_data: serde_json::Value = response.json().await?;
@@ -99,7 +98,7 @@ async fn main() -> BotResult<()> {
         return Err(other_error("Token data is not an object"));
     };
 
-    println!("Token data: {:?}", token_data);
+    println!("Token data: {token_data:?}");
 
     // Save token using TokenManager
     token_manager.set_token(token_data).await?;

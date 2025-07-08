@@ -81,7 +81,7 @@ impl TokenManager {
             .form(&params)
             .send()
             .await
-            .map_err(|e| google_calendar_error(&format!("Failed to refresh token: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to refresh token: {e}")))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -90,13 +90,12 @@ impl TokenManager {
                 .await
                 .unwrap_or_else(|_| "Could not read error response".to_string());
             return Err(google_calendar_error(&format!(
-                "Failed to refresh token: HTTP {} - {}",
-                status, error_body
+                "Failed to refresh token: HTTP {status} - {error_body}"
             )));
         }
 
         let new_token: Value = response.json().await.map_err(|e| {
-            google_calendar_error(&format!("Failed to parse token response: {}", e))
+            google_calendar_error(&format!("Failed to parse token response: {e}"))
         })?;
 
         // Check for required fields

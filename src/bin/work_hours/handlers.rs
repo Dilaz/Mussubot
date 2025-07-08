@@ -43,7 +43,7 @@ fn percent_decode(input: &str) -> String {
     while let Some(c) = chars.next() {
         if c == '%' {
             if let (Some(h1), Some(h2)) = (chars.next(), chars.next()) {
-                if let Ok(byte) = u8::from_str_radix(&format!("{}{}", h1, h2), 16) {
+                if let Ok(byte) = u8::from_str_radix(&format!("{h1}{h2}"), 16) {
                     // Only add ASCII chars and replace non-ASCII with '?'
                     if byte < 128 {
                         result.push(byte as char);
@@ -99,8 +99,7 @@ pub async fn login_form_handler(uri: Uri) -> impl IntoResponse {
             html.replace(
                 "<!-- ERROR_MESSAGE -->",
                 &format!(
-                    "<div class=\"bg-red-600 text-white p-4 rounded mb-4\">{}</div>",
-                    error_msg
+                    "<div class=\"bg-red-600 text-white p-4 rounded mb-4\">{error_msg}</div>"
                 ),
             )
         } else {
@@ -127,7 +126,7 @@ pub async fn login_handler(
         Ok(token) => {
             info!("User {} successfully authenticated", credentials.username);
             // Create a response with a redirect and set the auth cookie
-            let cookie = format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict", token);
+            let cookie = format!("auth_token={token}; Path=/; HttpOnly; SameSite=Strict");
             let mut response = Redirect::to("/upload").into_response();
             response.headers_mut().insert(
                 header::SET_COOKIE,
@@ -139,7 +138,7 @@ pub async fn login_handler(
             error!("Failed login attempt for user: {}", credentials.username);
             let encoded_error = percent_encode(ALLOWED_ERROR_MESSAGES[0]);
             let mut response =
-                Redirect::to(&format!("/login?error={}", encoded_error)).into_response();
+                Redirect::to(&format!("/login?error={encoded_error}")).into_response();
             response.headers_mut().insert(
                 header::SET_COOKIE,
                 header::HeaderValue::from_static("auth_token=; Path=/; HttpOnly; Max-Age=0"),
@@ -150,7 +149,7 @@ pub async fn login_handler(
             error!("Authentication error: {:?}", err);
             let encoded_error = percent_encode(ALLOWED_ERROR_MESSAGES[1]);
             let mut response =
-                Redirect::to(&format!("/login?error={}", encoded_error)).into_response();
+                Redirect::to(&format!("/login?error={encoded_error}")).into_response();
             response.headers_mut().insert(
                 header::SET_COOKIE,
                 header::HeaderValue::from_static("auth_token=; Path=/; HttpOnly; Max-Age=0"),
@@ -169,7 +168,7 @@ pub async fn upload_form_handler(Extension(auth): Extension<JwtAuth>) -> impl In
         });
 
     let html = include_str!("../../../assets/work_hours/upload.html")
-        .replace("value=\"\"", &format!("value=\"{}\"", name_for_value));
+        .replace("value=\"\"", &format!("value=\"{name_for_value}\""));
 
     Html(html)
 }

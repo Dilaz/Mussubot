@@ -19,7 +19,7 @@ pub async fn send_daily_notification(
 
     // Calculate tomorrow's date
     let today = NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map_err(|e| work_schedule_error(&format!("Failed to parse date: {}", e)))?;
+        .map_err(|e| work_schedule_error(&format!("Failed to parse date: {e}")))?;
     let tomorrow = today + Duration::days(1);
     let tomorrow_str = tomorrow.format("%Y-%m-%d").to_string();
 
@@ -108,7 +108,7 @@ pub async fn send_daily_notification(
                 .embed(embed),
         )
         .await
-        .map_err(|e| work_schedule_error(&format!("Failed to send message: {}", e)))?;
+        .map_err(|e| work_schedule_error(&format!("Failed to send message: {e}")))?;
 
     Ok(())
 }
@@ -148,7 +148,7 @@ pub async fn send_weekly_notification(
                     .embed(embed),
             )
             .await
-            .map_err(|e| work_schedule_error(&format!("Failed to send message: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Failed to send message: {e}")))?;
         return Ok(());
     }
 
@@ -172,7 +172,7 @@ pub async fn send_weekly_notification(
         for entry in &schedule.schedule {
             // Parse date to get day of week
             let naive_date = NaiveDate::parse_from_str(&entry.date, "%Y-%m-%d")
-                .map_err(|e| work_schedule_error(&format!("Failed to parse date: {}", e)))?;
+                .map_err(|e| work_schedule_error(&format!("Failed to parse date: {e}")))?;
 
             // Format the day name (e.g., "Mon") and date (e.g., "2025-04-01")
             let weekday_num = naive_date
@@ -217,7 +217,7 @@ pub async fn send_weekly_notification(
                 .embed(embed),
         )
         .await
-        .map_err(|e| work_schedule_error(&format!("Failed to send message: {}", e)))?;
+        .map_err(|e| work_schedule_error(&format!("Failed to send message: {e}")))?;
 
     Ok(())
 }

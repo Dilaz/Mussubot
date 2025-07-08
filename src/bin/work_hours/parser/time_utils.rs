@@ -20,7 +20,7 @@ pub fn normalize_time(time_str: &str) -> String {
         if parts.len() == 2 {
             if let (Ok(hours), Ok(minutes)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
                 if hours < 24 && minutes < 60 {
-                    return format!("{:02}:{:02}", hours, minutes);
+                    return format!("{hours:02}:{minutes:02}");
                 }
             }
         }
@@ -28,7 +28,7 @@ pub fn normalize_time(time_str: &str) -> String {
         // Just a number (e.g., "8"), assume it's hours
         if let Ok(hours) = time_str.parse::<u32>() {
             if hours < 24 {
-                return format!("{:02}:00", hours);
+                return format!("{hours:02}:00");
             }
         }
     }

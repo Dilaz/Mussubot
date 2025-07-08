@@ -28,7 +28,7 @@ pub async fn send_daily_notification(
         for (event, start) in today_events {
             let summary = event.summary.as_deref().unwrap_or("calendar_unnamed_event");
             let time = start.format("%H:%M").to_string();
-            message.push_str(&format!("• {} ({})\n", summary, time));
+            message.push_str(&format!("• {summary} ({time})\n"));
         }
 
         let channel_id = serenity::ChannelId::new(channel_id);
@@ -75,7 +75,7 @@ pub async fn send_weekly_notification(
                 for (event, start) in day_events {
                     let summary = event.summary.as_deref().unwrap_or("calendar_unnamed_event");
                     let time = start.format("%H:%M").to_string();
-                    message.push_str(&format!("• {} ({})\n", summary, time));
+                    message.push_str(&format!("• {summary} ({time})\n"));
                 }
             }
 
@@ -107,7 +107,7 @@ pub async fn send_new_events_notification(
             } else {
                 t!("calendar_unknown_time").to_string()
             };
-            message.push_str(&format!("• {} ({})\n", summary, time));
+            message.push_str(&format!("• {summary} ({time})\n"));
         }
 
         let channel_id = serenity::ChannelId::new(channel_id);

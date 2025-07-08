@@ -3,7 +3,7 @@ use crate::components::{
     google_calendar::GoogleCalendar, work_schedule::WorkSchedule, ComponentManager,
 };
 use crate::config::Config;
-use crate::error::Error;
+use crate::error::{Error, other_error};
 use crate::shutdown;
 use poise::serenity_prelude as serenity;
 use rust_i18n::t;
@@ -23,7 +23,7 @@ pub fn init_logging() -> miette::Result<()> {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)
-        .map_err(|e| Error::Other(format!("Failed to set up logging: {}", e)))?;
+        .map_err(|e| other_error(&format!("Failed to set up logging: {e}")))?;
 
     Ok(())
 }
@@ -173,7 +173,7 @@ pub async fn start_bot(config: Arc<RwLock<Config>>) -> miette::Result<()> {
                 Ok(Err(e)) => Err(e.into()),
                 Err(e) => {
                     error!("Client task error: {:?}", e);
-                    Err(Error::Other(format!("Client task error: {}", e)).into())
+                    Err(other_error(&format!("Client task error: {e}")).into())
                 }
             }
         }
@@ -197,7 +197,7 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
                     poise::CreateReply::default()
                         .embed(create_error_embed(
                             &t!("error_title", context = "command"),
-                            &format!("{}", error),
+                            &format!("{error}"),
                         ))
                         .ephemeral(true),
                 )
@@ -214,7 +214,7 @@ async fn on_error(error: poise::FrameworkError<'_, CommandContext, Error>) {
                         poise::CreateReply::default()
                             .embed(create_error_embed(
                                 &t!("error_title", context = "check"),
-                                &format!("{}", error),
+                                &format!("{error}"),
                             ))
                             .ephemeral(true),
                     )

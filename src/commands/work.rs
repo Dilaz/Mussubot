@@ -57,7 +57,7 @@ pub async fn tyovuorot(
                 let title = t!("work_schedule_employee_title", employee = emp);
                 let mut embed = serenity::CreateEmbed::new()
                     .title(title)
-                    .description(format!("{} - {}", start_date, end_date))
+                    .description(format!("{start_date} - {end_date}"))
                     .color(0x00_99_FF); // Blue color
 
                 if schedule.schedule.is_empty() {
@@ -350,7 +350,7 @@ pub async fn day(
                             _ => t!("day_unknown"),
                         };
 
-                        format!("{} ({})", day_name, date)
+                        format!("{day_name} ({date})")
                     } else {
                         date.clone()
                     };
@@ -573,7 +573,7 @@ pub async fn ensiviikko(
                 let title = t!("work_schedule_employee_title", employee = emp);
                 let mut embed = serenity::CreateEmbed::new()
                     .title(format!("{}: {}", t!("calendar_next_week"), title))
-                    .description(format!("{} - {}", start_date, end_date))
+                    .description(format!("{start_date} - {end_date}"))
                     .color(0x00_99_FF); // Blue color
 
                 if schedule.schedule.is_empty() {

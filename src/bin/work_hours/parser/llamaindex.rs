@@ -132,26 +132,25 @@ pub async fn parse_schedule_image(
                 multipart::Part::bytes(image_data.to_vec())
                     .file_name("schedule.jpg")
                     .mime_str("image/jpeg")
-                    .map_err(|e| format!("Failed to create multipart form: {}", e))?,
+                    .map_err(|e| format!("Failed to create multipart form: {e}"))?,
             );
 
         // Make the request to upload the file to LlamaIndex
         let res = client
             .post(LLAMA_PARSING_ENDPOINT)
-            .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
+            .header(header::AUTHORIZATION, format!("Bearer {api_key}"))
             .header(header::ACCEPT, "application/json")
             .multipart(form)
             .send()
             .await
-            .map_err(|e| format!("Failed to send request to LlamaIndex: {}", e))?;
+            .map_err(|e| format!("Failed to send request to LlamaIndex: {e}"))?;
 
         // Check if request was successful
         if !res.status().is_success() {
             let status = res.status();
             let error_body = res.text().await.unwrap_or_default();
             return Err(format!(
-                "LlamaIndex parsing service returned error: Status {}, Body: {}",
-                status, error_body
+                "LlamaIndex parsing service returned error: Status {status}, Body: {error_body}"
             ));
         }
 
@@ -159,13 +158,13 @@ pub async fn parse_schedule_image(
         let response: LlamaParsingJobResponse = res
             .json()
             .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+            .map_err(|e| format!("Failed to parse response: {e}"))?;
 
         info!("Got status: {}", response.status);
 
         let job_id = response.id;
         info!("LlamaIndex job created with ID: {}", job_id);
-        println!("Debug: LlamaIndex job created with ID: {}", job_id);
+        println!("Debug: LlamaIndex job created with ID: {job_id}");
 
         // Poll for job completion
         let result = poll_job_until_complete(&client, &api_key, &job_id).await?;
@@ -177,15 +176,14 @@ pub async fn parse_schedule_image(
 
                 // First, try to get the raw markdown result from LlamaIndex
                 let markdown_url = format!(
-                    "{}parsing/job/{}/result/raw/markdown",
-                    LLAMA_PARSING_ENDPOINT_EU, job_id
+                    "{LLAMA_PARSING_ENDPOINT_EU}parsing/job/{job_id}/result/raw/markdown"
                 );
                 debug!("Requesting markdown result from: {}", markdown_url);
-                println!("Debug: Requesting markdown result from: {}", markdown_url);
+                println!("Debug: Requesting markdown result from: {markdown_url}");
 
                 let markdown_res = client
                     .get(&markdown_url)
-                    .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
+                    .header(header::AUTHORIZATION, format!("Bearer {api_key}"))
                     .header(header::ACCEPT, "application/json")
                     .send()
                     .await;
@@ -249,31 +247,30 @@ pub async fn parse_schedule_image(
                 }
 
                 // Fall back to raw text result if markdown fails or is not usable
-                let raw_url = format!("{}parsing/{}/result/raw", LLAMA_PARSING_ENDPOINT_EU, job_id);
+                let raw_url = format!("{LLAMA_PARSING_ENDPOINT_EU}parsing/{job_id}/result/raw");
                 debug!("Requesting raw text result from: {}", raw_url);
-                println!("Debug: Requesting raw text result from: {}", raw_url);
+                println!("Debug: Requesting raw text result from: {raw_url}");
 
                 let raw_res = client
                     .get(&raw_url)
-                    .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
+                    .header(header::AUTHORIZATION, format!("Bearer {api_key}"))
                     .header(header::ACCEPT, "application/json")
                     .send()
                     .await
-                    .map_err(|e| format!("Failed to get raw result: {}", e))?;
+                    .map_err(|e| format!("Failed to get raw result: {e}"))?;
 
                 if !raw_res.status().is_success() {
                     let status = raw_res.status();
                     let error_body = raw_res.text().await.unwrap_or_default();
                     return Err(format!(
-                        "Failed to get raw result: Status {}, Body: {}",
-                        status, error_body
+                        "Failed to get raw result: Status {status}, Body: {error_body}"
                     ));
                 }
 
                 let raw_result: LlamaRawResult = raw_res
                     .json()
                     .await
-                    .map_err(|e| format!("Failed to parse raw result: {}", e))?;
+                    .map_err(|e| format!("Failed to parse raw result: {e}"))?;
 
                 // Process the raw text with Rig/Gemini directly
                 #[cfg(feature = "web-interface")]
@@ -314,43 +311,40 @@ pub async fn parse_schedule_image(
 
                 // If Rig processing fails or is not available, try to extract structured JSON
                 let structured_url = format!(
-                    "{}parsing/{}/result/structured",
-                    LLAMA_PARSING_ENDPOINT_EU, job_id
+                    "{LLAMA_PARSING_ENDPOINT_EU}parsing/{job_id}/result/structured"
                 );
                 debug!("Requesting structured result from: {}", structured_url);
                 println!(
-                    "Debug: Requesting structured result from: {}",
-                    structured_url
+                    "Debug: Requesting structured result from: {structured_url}"
                 );
 
                 let structured_res = client
                     .get(&structured_url)
-                    .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
+                    .header(header::AUTHORIZATION, format!("Bearer {api_key}"))
                     .header(header::ACCEPT, "application/json")
                     .send()
                     .await
-                    .map_err(|e| format!("Failed to get structured result: {}", e))?;
+                    .map_err(|e| format!("Failed to get structured result: {e}"))?;
 
                 if !structured_res.status().is_success() {
                     let status = structured_res.status();
                     let error_body = structured_res.text().await.unwrap_or_default();
                     return Err(format!(
-                        "Failed to get structured result: Status {}, Body: {}",
-                        status, error_body
+                        "Failed to get structured result: Status {status}, Body: {error_body}"
                     ));
                 }
 
                 let result: LlamaStructuredResult = structured_res
                     .json()
                     .await
-                    .map_err(|e| format!("Failed to parse structured result: {}", e))?;
+                    .map_err(|e| format!("Failed to parse structured result: {e}"))?;
 
                 // Extract the work days from the JSON result
                 let json_str = result.data.to_string();
 
                 // Parse the JSON data into our extraction format
                 let extracted_days = extract_json_array(&json_str)
-                    .map_err(|e| format!("Failed to extract JSON from result: {}", e))?;
+                    .map_err(|e| format!("Failed to extract JSON from result: {e}"))?;
 
                 convert_to_work_schedule(employee_name, extracted_days)
             }
@@ -358,15 +352,15 @@ pub async fn parse_schedule_image(
                 let error_msg = result
                     .error_message
                     .unwrap_or_else(|| "Unknown error".to_string());
-                Err(format!("LlamaIndex job failed: {}", error_msg))
+                Err(format!("LlamaIndex job failed: {error_msg}"))
             }
             "ERROR" | "error" => {
                 let error_msg = result
                     .error_message
                     .unwrap_or_else(|| "Unknown error".to_string());
-                Err(format!("LlamaIndex job failed: {}", error_msg))
+                Err(format!("LlamaIndex job failed: {error_msg}"))
             }
-            status => Err(format!("Unexpected job status: {}", status)),
+            status => Err(format!("Unexpected job status: {status}")),
         }
     }
     #[cfg(not(feature = "web-interface"))]
@@ -382,35 +376,34 @@ pub async fn poll_job_until_complete(
     api_key: &str,
     job_id: &str,
 ) -> Result<LlamaJobResult, String> {
-    const MAX_POLLS: u32 = 60;
+    const MAX_POLLS: u32 = 300;
     const POLL_DELAY_MS: u64 = 1000;
 
-    let job_url = format!("{}parsing/job/{}", LLAMA_PARSING_ENDPOINT_EU, job_id);
+    let job_url = format!("{LLAMA_PARSING_ENDPOINT_EU}parsing/job/{job_id}");
     debug!("Polling job status from: {}", job_url);
-    println!("Debug: Polling job status from: {}", job_url);
+    println!("Debug: Polling job status from: {job_url}");
 
     for attempt in 1..=MAX_POLLS {
         let res = client
             .get(&job_url)
-            .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
+            .header(header::AUTHORIZATION, format!("Bearer {api_key}"))
             .header(header::ACCEPT, "application/json")
             .send()
             .await
-            .map_err(|e| format!("Failed to poll job status: {}", e))?;
+            .map_err(|e| format!("Failed to poll job status: {e}"))?;
 
         if !res.status().is_success() {
             let status = res.status();
             let error_body = res.text().await.unwrap_or_default();
             return Err(format!(
-                "Failed to get job status: Status {}, Body: {}",
-                status, error_body
+                "Failed to get job status: Status {status}, Body: {error_body}"
             ));
         }
 
         let job_result: LlamaJobResult = res
             .json()
             .await
-            .map_err(|e| format!("Failed to parse job status: {}", e))?;
+            .map_err(|e| format!("Failed to parse job status: {e}"))?;
 
         match job_result.status.as_str() {
             "completed" | "COMPLETED" | "SUCCESS" | "success" | "failed" | "FAILED" | "ERROR"
@@ -431,15 +424,14 @@ pub async fn poll_job_until_complete(
             }
             status => {
                 warn!("Unknown job status: {}", status);
-                println!("Debug: Unknown job status: {}", status);
+                println!("Debug: Unknown job status: {status}");
                 tokio::time::sleep(tokio::time::Duration::from_millis(POLL_DELAY_MS)).await;
             }
         }
     }
 
     Err(format!(
-        "Job polling timed out after {} attempts",
-        MAX_POLLS
+        "Job polling timed out after {MAX_POLLS} attempts"
     ))
 }
 
@@ -458,7 +450,7 @@ pub fn extract_json_array(text: &str) -> Result<Vec<WorkDayExtraction>, String> 
                     let json_str = &text[start_idx..=end_idx];
                     match from_str::<Vec<WorkDayExtraction>>(json_str) {
                         Ok(days) => Ok(days),
-                        Err(e) => Err(format!("Failed to parse extracted JSON array: {}", e)),
+                        Err(e) => Err(format!("Failed to parse extracted JSON array: {e}")),
                     }
                 } else {
                     Err("Invalid JSON array structure".to_string())

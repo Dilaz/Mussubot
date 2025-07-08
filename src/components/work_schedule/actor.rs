@@ -52,7 +52,7 @@ impl WorkScheduleActorHandle {
         self.command_tx
             .send(WorkScheduleCommand::GetEmployees(response_tx))
             .await
-            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -72,7 +72,7 @@ impl WorkScheduleActorHandle {
                 response_tx,
             ))
             .await
-            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -92,7 +92,7 @@ impl WorkScheduleActorHandle {
                 response_tx,
             ))
             .await
-            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -116,7 +116,7 @@ impl WorkScheduleActorHandle {
                 response_tx,
             ))
             .await
-            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -199,7 +199,7 @@ impl WorkScheduleActor {
             .redis_handle
             .run_command(custom_cmd)
             .await
-            .map_err(|e| work_schedule_error(&format!("Failed to get employees: {}", e)));
+            .map_err(|e| work_schedule_error(&format!("Failed to get employees: {e}")));
 
         result
     }
@@ -216,7 +216,7 @@ impl WorkScheduleActor {
             .redis_handle
             .run_command(custom_cmd)
             .await
-            .map_err(|e| work_schedule_error(&format!("Failed to get dates: {}", e)))?;
+            .map_err(|e| work_schedule_error(&format!("Failed to get dates: {e}")))?;
 
         let _schedule = EmployeeSchedule {
             employee: employee.to_string(),
@@ -261,16 +261,14 @@ impl WorkScheduleActor {
                 .await
                 .map_err(|e| {
                     work_schedule_error(&format!(
-                        "Failed to get entry for {} on {}: {}",
-                        employee, date, e
+                        "Failed to get entry for {employee} on {date}: {e}"
                     ))
                 })?;
 
         if let Some(json) = entry_json {
             let entry: WorkScheduleEntry = serde_json::from_str(&json).map_err(|e| {
                 work_schedule_error(&format!(
-                    "Failed to deserialize entry for {} on {}: {}",
-                    employee, date, e
+                    "Failed to deserialize entry for {employee} on {date}: {e}"
                 ))
             })?;
             Ok(entry)
@@ -312,11 +310,11 @@ impl WorkScheduleActor {
     ) -> BotResult<EmployeeSchedule> {
         // Parse the dates
         let start = NaiveDate::parse_from_str(start_date, "%Y-%m-%d").map_err(|e| {
-            work_schedule_error(&format!("Failed to parse start date {}: {}", start_date, e))
+            work_schedule_error(&format!("Failed to parse start date {start_date}: {e}"))
         })?;
 
         let end = NaiveDate::parse_from_str(end_date, "%Y-%m-%d").map_err(|e| {
-            work_schedule_error(&format!("Failed to parse end date {}: {}", end_date, e))
+            work_schedule_error(&format!("Failed to parse end date {end_date}: {e}"))
         })?;
 
         // Get all dates for this employee
@@ -329,7 +327,7 @@ impl WorkScheduleActor {
             .redis_handle
             .run_command::<Vec<String>>(custom_cmd)
             .await
-            .map_err(|e| work_schedule_error(&format!("Failed to get dates: {}", e)))?
+            .map_err(|e| work_schedule_error(&format!("Failed to get dates: {e}")))?
             .into_iter()
             .collect();
 

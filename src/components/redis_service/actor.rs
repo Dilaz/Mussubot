@@ -49,7 +49,7 @@ impl RedisActorHandle {
         self.command_tx
             .send(RedisCommand::SaveEvents(events, response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -63,7 +63,7 @@ impl RedisActorHandle {
         self.command_tx
             .send(RedisCommand::GetEvents(response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -77,7 +77,7 @@ impl RedisActorHandle {
         self.command_tx
             .send(RedisCommand::GetToken(response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -91,7 +91,7 @@ impl RedisActorHandle {
         self.command_tx
             .send(RedisCommand::SaveToken(token, response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -108,7 +108,7 @@ impl RedisActorHandle {
         self.command_tx
             .send(RedisCommand::RunCommand(cmd, response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         // Wait for the result
         let result: BotResult<redis::Value> = response_rx
@@ -119,7 +119,7 @@ impl RedisActorHandle {
         // Convert redis::Value to the requested type T
         match result {
             Ok(value) => T::from_redis_value(&value)
-                .map_err(|e| google_calendar_error(&format!("Type conversion error: {}", e))),
+                .map_err(|e| google_calendar_error(&format!("Type conversion error: {e}"))),
             Err(e) => Err(e),
         }
     }
@@ -199,7 +199,7 @@ impl RedisActor {
         // Reconnect with the proper URL if needed
         let redis = if redis_url != "redis://127.0.0.1:6379" {
             RedisClient::open(redis_url).map_err(|e| {
-                google_calendar_error(&format!("Failed to create Redis client: {}", e))
+                google_calendar_error(&format!("Failed to create Redis client: {e}"))
             })?
         } else {
             self.client.clone()
@@ -208,7 +208,7 @@ impl RedisActor {
         let result: BotResult<MultiplexedConnection> = redis
             .get_multiplexed_async_connection()
             .await
-            .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {}", e)));
+            .map_err(|e| google_calendar_error(&format!("Failed to connect to Redis: {e}")));
         result
     }
 
@@ -219,7 +219,7 @@ impl RedisActor {
 
         // Convert events to JSON
         let events_json = serde_json::to_string(&events).map_err(|e| -> crate::error::Error {
-            google_calendar_error(&format!("Failed to serialize events: {}", e))
+            google_calendar_error(&format!("Failed to serialize events: {e}"))
         })?;
 
         // Save to Redis
@@ -227,7 +227,7 @@ impl RedisActor {
             .set(keys::GOOGLE_CALENDAR_EVENTS, events_json)
             .await
             .map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to save events to Redis: {}", e))
+                google_calendar_error(&format!("Failed to save events to Redis: {e}"))
             })?;
 
         Ok(())
@@ -243,7 +243,7 @@ impl RedisActor {
             .exists(keys::GOOGLE_CALENDAR_EVENTS)
             .await
             .map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Redis error: {}", e))
+                google_calendar_error(&format!("Redis error: {e}"))
             })?;
 
         if !exists {
@@ -253,14 +253,14 @@ impl RedisActor {
         // Get events from Redis
         let events_json: String = redis_conn.get(keys::GOOGLE_CALENDAR_EVENTS).await.map_err(
             |e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to read events from Redis: {}", e))
+                google_calendar_error(&format!("Failed to read events from Redis: {e}"))
             },
         )?;
 
         // Deserialize events
         let events: Vec<CalendarEvent> =
             serde_json::from_str(&events_json).map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to deserialize events: {}", e))
+                google_calendar_error(&format!("Failed to deserialize events: {e}"))
             })?;
 
         Ok(events)
@@ -276,7 +276,7 @@ impl RedisActor {
             .exists(keys::GOOGLE_CALENDAR_TOKEN)
             .await
             .map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Redis error: {}", e))
+                google_calendar_error(&format!("Redis error: {e}"))
             })?;
 
         if !exists {
@@ -286,14 +286,14 @@ impl RedisActor {
         // Get token from Redis
         let token_json: String = redis_conn.get(keys::GOOGLE_CALENDAR_TOKEN).await.map_err(
             |e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to read token from Redis: {}", e))
+                google_calendar_error(&format!("Failed to read token from Redis: {e}"))
             },
         )?;
 
         // Deserialize token
         let token: Value =
             serde_json::from_str(&token_json).map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to deserialize token: {}", e))
+                google_calendar_error(&format!("Failed to deserialize token: {e}"))
             })?;
 
         Ok(Some(token))
@@ -312,7 +312,7 @@ impl RedisActor {
             .set(keys::GOOGLE_CALENDAR_TOKEN, token_json)
             .await
             .map_err(|e| -> crate::error::Error {
-                google_calendar_error(&format!("Failed to save token to Redis: {}", e))
+                google_calendar_error(&format!("Failed to save token to Redis: {e}"))
             })?;
 
         Ok(())
@@ -326,6 +326,6 @@ impl RedisActor {
         // Execute the command
         cmd.query_async(&mut redis_conn)
             .await
-            .map_err(|e| google_calendar_error(&format!("Failed to execute Redis command: {}", e)))
+            .map_err(|e| google_calendar_error(&format!("Failed to execute Redis command: {e}")))
     }
 }

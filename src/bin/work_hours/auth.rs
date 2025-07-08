@@ -188,7 +188,7 @@ impl AuthService {
             &claims,
             &EncodingKey::from_secret(self.config.jwt_secret.as_bytes()),
         )
-        .map_err(|e| format!("Failed to generate token: {}", e))
+        .map_err(|e| format!("Failed to generate token: {e}"))
     }
 
     /// Validate a JWT token

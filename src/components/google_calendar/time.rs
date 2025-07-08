@@ -19,7 +19,7 @@ pub fn next_notification_time(
 pub fn get_event_start(event: &CalendarEvent) -> BotResult<Option<DateTime<Local>>> {
     if let Some(start_time) = &event.start_date_time {
         let dt = NaiveDateTime::parse_from_str(start_time, "%Y-%m-%dT%H:%M:%S%z")
-            .map_err(|e| google_calendar_error(&format!("Failed to parse datetime: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to parse datetime: {e}")))?;
         let local_dt = match Local.from_local_datetime(&dt) {
             chrono::LocalResult::Single(dt) => dt,
             chrono::LocalResult::Ambiguous(_, _) => {
@@ -32,7 +32,7 @@ pub fn get_event_start(event: &CalendarEvent) -> BotResult<Option<DateTime<Local
         Ok(Some(local_dt))
     } else if let Some(start_date) = &event.start_date {
         let date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")
-            .map_err(|e| google_calendar_error(&format!("Failed to parse date: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to parse date: {e}")))?;
         let dt = date
             .and_hms_opt(0, 0, 0)
             .ok_or_else(|| google_calendar_error("Failed to create datetime"))?;

@@ -40,7 +40,7 @@ impl GoogleCalendarActorHandle {
         self.command_tx
             .send(GoogleCalendarCommand::GetUpcomingEvents(response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -54,7 +54,7 @@ impl GoogleCalendarActorHandle {
         self.command_tx
             .send(GoogleCalendarCommand::CheckNewEvents(response_tx))
             .await
-            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Actor mailbox error: {e}")))?;
 
         response_rx
             .recv()
@@ -152,12 +152,11 @@ impl GoogleCalendarActor {
 
         // Build URL with query parameters
         let url_str = format!(
-            "https://www.googleapis.com/calendar/v3/calendars/{}/events",
-            calendar_id
+            "https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
         );
 
         let mut url = Url::parse(&url_str)
-            .map_err(|e| google_calendar_error(&format!("Failed to parse URL: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to parse URL: {e}")))?;
 
         let mut query_params = HashMap::new();
         query_params.insert("timeMin", time_min);
@@ -172,10 +171,10 @@ impl GoogleCalendarActor {
         // Make API request
         let response = client
             .get(url)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .send()
             .await
-            .map_err(|e| google_calendar_error(&format!("Failed to fetch events: {}", e)))?;
+            .map_err(|e| google_calendar_error(&format!("Failed to fetch events: {e}")))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -184,13 +183,12 @@ impl GoogleCalendarActor {
                 .await
                 .unwrap_or_else(|_| "Could not read error response".to_string());
             return Err(google_calendar_error(&format!(
-                "Failed to fetch events: HTTP {} - {}",
-                status, error_body
+                "Failed to fetch events: HTTP {status} - {error_body}"
             )));
         }
 
         let response_data: serde_json::Value = response.json().await.map_err(|e| {
-            google_calendar_error(&format!("Failed to parse events response: {}", e))
+            google_calendar_error(&format!("Failed to parse events response: {e}"))
         })?;
 
         // Parse events from response

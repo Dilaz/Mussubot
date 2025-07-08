@@ -14,12 +14,12 @@ const USER_PROMPT_TEMPLATE: &str = r#"**Task:** Generate Employee Schedule JSON 
 **Context:**
 You are provided with:
 1.  An original work schedule **image**. This is the **ABSOLUTE SOURCE OF TRUTH**.
-2.  A **preliminary markdown table** (provided at the end of this prompt). This table was extracted previously and **MAY CONTAIN ERRORS**. Use it **only** as a navigational aid.
+2.  A **preliminary markdown table** (provided at the end of this prompt). This table was extracted previously and **is known to CONTAIN ERRORS**. Use it **only** as a navigational aid.
 3.  A **Target Employee** name (`[EMPLOYEE_NAME]`).
 4.  The relevant **Year** (`[YEAR]`).
 
 **Your Goal:**
-Produce a **correct** JSON schedule for the **Target Employee** by performing a **fresh extraction directly from the IMAGE**. Do **NOT** simply copy or correct the values from the provided preliminary markdown table.
+Your **only goal** is to produce a **perfectly accurate** JSON schedule for the **Target Employee** by extracting data **exclusively from the IMAGE**. The provided markdown table is **unreliable and contains errors**; it is for guidance only. **NEVER** copy data from the markdown table.
 
 **Extraction Process:**
 
@@ -28,7 +28,7 @@ Produce a **correct** JSON schedule for the **Target Employee** by performing a 
 3.  **Direct Image Extraction per Cell:** For each relevant date column identified in step 2:
     *   **Locate the specific cell** in the **IMAGE** at the intersection of the Target Employee's row and the current date column.
     *   **Analyze the Image Cell Content:** Apply the **Strict Extraction Rules** (see below) to the **primary content** visible within this specific image cell.
-    *   **Determine the `work_hours` Value:** The value you extract following these rules **directly from the image cell** is the definitive `work_hours` value. **DO NOT use the value from the preliminary markdown table for this.**
+    *   **Determine the `work_hours` Value:** The value must come **only** from the image cell. **NEVER** use the value from the preliminary markdown table, even if the image cell is empty. If the markdown shows data but the image is blank, the correct output is an empty string `""`.
     *   **Format Date:** Combine the date from the image column header (e.g., '14.4.') with the `[YEAR]` to create the "YYYY-MM-DD" format (e.g., "[YEAR]-04-14").
     *   **Create JSON Object:** Construct a JSON object: `{ "date": "YYYY-MM-DD", "work_hours": "IMAGE_EXTRACTED_VALUE" }`.
 4.  **Compile JSON Array:** Collect all the generated JSON objects for the employee into a single JSON array.
@@ -45,9 +45,12 @@ Produce a **correct** JSON schedule for the **Target Employee** by performing a 
 5.  **Text and Combinations:** Extract text ("Toive"), combined lines ("Pai-kalla" -> "Paikalla"), or combined text/codes ("Toive vp") precisely as seen in the primary area of the image cell.
 6.  **Visually Blank Cells:** If the primary content area of the **image cell** is visually empty for the target employee on a specific date, the extracted `work_hours` value MUST be an empty string `""`.
 
-**Role of Preliminary Markdown:**
-*   Use the preliminary markdown table provided below **only** to help you visually locate the correct employee row and understand the general sequence of dates.
-*   **DO NOT** treat the `work_hours` values within the markdown as correct. Your `work_hours` output MUST come from your **independent analysis of the image** based on the rules above.
+**Critical Instructions on a Flawed Guide (The Markdown Table):**
+*   The markdown table is known to be **unreliable and contain multiple errors**.
+*   Its **only** purpose is to help you find the employee's name and the general layout of the dates.
+*   **You MUST IGNORE the data within the markdown table's cells.**
+*   Every single `work_hours` value you output MUST be the result of a fresh analysis of the corresponding cell **in the IMAGE**.
+*   If the image and markdown disagree, the **IMAGE IS ALWAYS RIGHT**. There are no exceptions. Trust the image, not the text.
 
 **JSON Output Format:**
 *   Output MUST be a single JSON array `[...]`.
@@ -124,7 +127,7 @@ pub async fn parse_with_rig(
     let response = agent
         .chat(user_prompt, messages)
         .await
-        .map_err(|e| format!("Rig API request failed: {}", e))?;
+        .map_err(|e| format!("Rig API request failed: {e}"))?;
 
     // Get the response content
     info!("Received response from Gemini");
