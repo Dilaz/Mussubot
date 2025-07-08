@@ -3,7 +3,7 @@ use crate::components::{
     google_calendar::GoogleCalendar, work_schedule::WorkSchedule, ComponentManager,
 };
 use crate::config::Config;
-use crate::error::{Error, other_error};
+use crate::error::{other_error, Error};
 use crate::shutdown;
 use poise::serenity_prelude as serenity;
 use rust_i18n::t;

@@ -98,9 +98,7 @@ pub async fn login_form_handler(uri: Uri) -> impl IntoResponse {
         if ALLOWED_ERROR_MESSAGES.contains(&error_msg.as_str()) {
             html.replace(
                 "<!-- ERROR_MESSAGE -->",
-                &format!(
-                    "<div class=\"bg-red-600 text-white p-4 rounded mb-4\">{error_msg}</div>"
-                ),
+                &format!("<div class=\"bg-red-600 text-white p-4 rounded mb-4\">{error_msg}</div>"),
             )
         } else {
             // If error not in allowed list, don't show anything

@@ -151,9 +151,8 @@ impl GoogleCalendarActor {
         let time_max = (now + chrono::Duration::days(28)).to_rfc3339();
 
         // Build URL with query parameters
-        let url_str = format!(
-            "https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
-        );
+        let url_str =
+            format!("https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events");
 
         let mut url = Url::parse(&url_str)
             .map_err(|e| google_calendar_error(&format!("Failed to parse URL: {e}")))?;
@@ -187,9 +186,10 @@ impl GoogleCalendarActor {
             )));
         }
 
-        let response_data: serde_json::Value = response.json().await.map_err(|e| {
-            google_calendar_error(&format!("Failed to parse events response: {e}"))
-        })?;
+        let response_data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| google_calendar_error(&format!("Failed to parse events response: {e}")))?;
 
         // Parse events from response
         let events = response_data

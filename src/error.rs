@@ -151,7 +151,9 @@ impl From<redis::RedisError> for Error {
 // Implement From for reqwest errors
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
-        Error(Box::new(ErrorImpl::Other(format!("HTTP client error: {err}"))))
+        Error(Box::new(ErrorImpl::Other(format!(
+            "HTTP client error: {err}"
+        ))))
     }
 }
 
@@ -160,7 +162,9 @@ pub type BotResult<T> = Result<T, Error>;
 
 /// Helper to create environment errors
 pub fn env_error(var: &str) -> Error {
-    Error(Box::new(ErrorImpl::Environment(format!("Missing environment variable: {var}"))))
+    Error(Box::new(ErrorImpl::Environment(format!(
+        "Missing environment variable: {var}"
+    ))))
 }
 
 /// Helper to create configuration errors

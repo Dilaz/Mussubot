@@ -175,9 +175,8 @@ pub async fn parse_schedule_image(
                 info!("LlamaIndex job completed successfully");
 
                 // First, try to get the raw markdown result from LlamaIndex
-                let markdown_url = format!(
-                    "{LLAMA_PARSING_ENDPOINT_EU}parsing/job/{job_id}/result/raw/markdown"
-                );
+                let markdown_url =
+                    format!("{LLAMA_PARSING_ENDPOINT_EU}parsing/job/{job_id}/result/raw/markdown");
                 debug!("Requesting markdown result from: {}", markdown_url);
                 println!("Debug: Requesting markdown result from: {markdown_url}");
 
@@ -310,13 +309,10 @@ pub async fn parse_schedule_image(
                 }
 
                 // If Rig processing fails or is not available, try to extract structured JSON
-                let structured_url = format!(
-                    "{LLAMA_PARSING_ENDPOINT_EU}parsing/{job_id}/result/structured"
-                );
+                let structured_url =
+                    format!("{LLAMA_PARSING_ENDPOINT_EU}parsing/{job_id}/result/structured");
                 debug!("Requesting structured result from: {}", structured_url);
-                println!(
-                    "Debug: Requesting structured result from: {structured_url}"
-                );
+                println!("Debug: Requesting structured result from: {structured_url}");
 
                 let structured_res = client
                     .get(&structured_url)
@@ -430,9 +426,7 @@ pub async fn poll_job_until_complete(
         }
     }
 
-    Err(format!(
-        "Job polling timed out after {MAX_POLLS} attempts"
-    ))
+    Err(format!("Job polling timed out after {MAX_POLLS} attempts"))
 }
 
 /// Extract JSON array from text

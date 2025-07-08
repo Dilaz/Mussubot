@@ -52,9 +52,8 @@ impl MockRedis {
         let data = self.data.lock().await;
 
         if let Some(token_json) = data.get("google_calendar_token") {
-            let token: serde_json::Value = serde_json::from_str(token_json).map_err(|e| {
-                google_calendar_error(&format!("Failed to deserialize token: {e}"))
-            })?;
+            let token: serde_json::Value = serde_json::from_str(token_json)
+                .map_err(|e| google_calendar_error(&format!("Failed to deserialize token: {e}")))?;
             Ok(Some(token))
         } else {
             Ok(None)

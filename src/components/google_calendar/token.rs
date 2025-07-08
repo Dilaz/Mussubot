@@ -94,9 +94,10 @@ impl TokenManager {
             )));
         }
 
-        let new_token: Value = response.json().await.map_err(|e| {
-            google_calendar_error(&format!("Failed to parse token response: {e}"))
-        })?;
+        let new_token: Value = response
+            .json()
+            .await
+            .map_err(|e| google_calendar_error(&format!("Failed to parse token response: {e}")))?;
 
         // Check for required fields
         if new_token.get("access_token").is_none() {
