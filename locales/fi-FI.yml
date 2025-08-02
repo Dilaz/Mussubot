@@ -18,10 +18,11 @@
   "calendar_invalid_timezone": "Virheellinen aikavyöhyke '%{timezone}'",
   "calendar_error_fetching": "Virhe haettaessa tapahtumia: %{error}",
   "calendar_next_week": "Ensi viikko",
+  "calendar_no_events_today": "Ei kalenteritapahtumia tänään",
 
   "work_schedule_daily_greeting": "Huomenta! Tässä on tämän päivän ja huomisen työvuorot:",
   "work_schedule_daily_title": "Työvuorot (%{date})",
-  "work_schedule_daily_no_schedules": "Päivälle %{date} ei ole asetettu työvuoroja.",
+  "work_schedule_daily_no_schedules": "Kaikilla on vapaapäivä %{date}! Aika juhlia! 🎉",
   "work_schedule_weekly_title": "Viikon työvuorot (%{start_date} - %{end_date})",
   "work_schedule_weekly_greeting": "Tässä on tämän viikon työvuorot:",
   "work_schedule_employee_title": "Työvuorot henkilölle %{employee}",

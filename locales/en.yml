@@ -18,10 +18,11 @@
   "calendar_invalid_timezone": "Invalid timezone '%{timezone}'",
   "calendar_error_fetching": "Error fetching events: %{error}",
   "calendar_next_week": "Next Week",
+  "calendar_no_events_today": "No calendar events today",
 
   "work_schedule_daily_greeting": "Good morning! Here's today's and tomorrow's work schedules:",
   "work_schedule_daily_title": "Work Schedules (%{date})",
-  "work_schedule_daily_no_schedules": "No work schedules are set for %{date}.",
+  "work_schedule_daily_no_schedules": "Everyone has a day off on %{date}! Time to celebrate! 🎉",
   "work_schedule_weekly_title": "Weekly Work Schedule (%{start_date} to %{end_date})",
   "work_schedule_weekly_greeting": "Here's the work schedule for this week:",
   "work_schedule_employee_title": "Work Schedule for %{employee}",
