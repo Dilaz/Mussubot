@@ -25,6 +25,8 @@ async fn test_config_loads() {
         bot_locale: "en".to_string(),
         new_events_check_interval: 300,
         llama_api_key: "test_llama_api_key".to_string(),
+        disable_work_schedule_daily_notifications: false,
+        disable_work_schedule_weekly_notifications: false,
     };
 
     assert_eq!(config.redis_url, "redis://127.0.0.1:6379");
@@ -107,6 +109,8 @@ async fn test_config_from_env() {
         bot_locale: "en".to_string(),
         new_events_check_interval: 300,
         llama_api_key: "test_llama_api_key".to_string(),
+        disable_work_schedule_daily_notifications: false,
+        disable_work_schedule_weekly_notifications: false,
     }));
 
     // Test reading from the config
@@ -231,6 +235,8 @@ async fn test_component_initialization_order() {
         bot_locale: "en".to_string(),
         new_events_check_interval: 300,
         llama_api_key: "test_llama_api_key".to_string(),
+        disable_work_schedule_daily_notifications: false,
+        disable_work_schedule_weekly_notifications: false,
     }));
 
     // Create component manager

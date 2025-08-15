@@ -128,6 +128,7 @@ impl Scheduler for WorkScheduleScheduler {
                 let daily_time = daily_time.clone();
                 let weekly_time = weekly_time.clone();
                 let component_type_clone = component_type.clone();
+                let config_for_task = Arc::clone(&config);
 
                 // Spawn the scheduler task
                 let task = tokio::spawn(async move {
@@ -138,6 +139,7 @@ impl Scheduler for WorkScheduleScheduler {
                         channel_id,
                         notification_handler,
                         &component_type_clone,
+                        config_for_task,
                     )
                     .await;
                 });
@@ -178,6 +180,7 @@ async fn run_scheduler_loop(
     channel_id: u64,
     handler: Arc<dyn NotificationHandler>,
     component_type: &str,
+    config: Arc<RwLock<Config>>,
 ) {
     loop {
         // Get the current time
@@ -188,8 +191,42 @@ async fn run_scheduler_loop(
         // Update flags based on current date
         update_notification_flags(&today, &week_start_date, component_type).await;
 
+        // Read config to determine if daily/weekly notifications are disabled
+        let (daily_disabled, weekly_disabled) = {
+            let cfg = config.read().await;
+            (
+                cfg.disable_work_schedule_daily_notifications,
+                cfg.disable_work_schedule_weekly_notifications,
+            )
+        };
+
         // Calculate the next notification time
-        let (notification_type, next_time) =
+        let (notification_type, next_time) = if daily_disabled && weekly_disabled {
+            info!(
+                "[{}] Both daily and weekly work schedule notifications are disabled; sleeping",
+                component_type
+            );
+            sleep(TokioDuration::from_secs(3600)).await; // Sleep an hour before re-checking
+            continue;
+        } else if daily_disabled {
+            match crate::utils::time::next_weekly_time(&now, weekly_time) {
+                Some(t) => ("weekly".to_string(), t),
+                None => {
+                    error!("Failed to calculate next weekly notification time");
+                    sleep(TokioDuration::from_secs(3600)).await; // Retry in an hour
+                    continue;
+                }
+            }
+        } else if weekly_disabled {
+            match crate::utils::time::next_daily_time(&now, daily_time) {
+                Some(t) => ("daily".to_string(), t),
+                None => {
+                    error!("Failed to calculate next daily notification time");
+                    sleep(TokioDuration::from_secs(3600)).await; // Retry in an hour
+                    continue;
+                }
+            }
+        } else {
             match calculate_next_notification(&now, daily_time, weekly_time) {
                 Ok(result) => result,
                 Err(e) => {
@@ -197,7 +234,8 @@ async fn run_scheduler_loop(
                     sleep(TokioDuration::from_secs(3600)).await; // Retry in an hour
                     continue;
                 }
-            };
+            }
+        };
 
         // Convert string notification type to enum
         let notification_type_enum = match notification_type.as_str() {
@@ -257,7 +295,38 @@ async fn run_scheduler_loop(
             continue;
         }
 
-        // Send the appropriate notification
+        // Send the appropriate notification (with env-based gating for daily/weekly)
+        // Re-read flags to handle runtime changes
+        let (daily_disabled_now, weekly_disabled_now) = {
+            let cfg = config.read().await;
+            (
+                cfg.disable_work_schedule_daily_notifications,
+                cfg.disable_work_schedule_weekly_notifications,
+            )
+        };
+
+        // If the selected type is disabled now, skip sending and mark as "done" for this period
+        if matches!(notification_type_enum, NotificationType::Daily) && daily_disabled_now {
+            info!(
+                "[{}] Daily work schedule notifications are disabled via env; skipping send",
+                component_type
+            );
+            update_last_sent_date(NotificationType::Daily, &today, component_type).await;
+            // Small pause to avoid immediate recalculation
+            sleep(TokioDuration::from_secs(5)).await;
+            continue;
+        }
+
+        if matches!(notification_type_enum, NotificationType::Weekly) && weekly_disabled_now {
+            info!(
+                "[{}] Weekly work schedule notifications are disabled via env; skipping send",
+                component_type
+            );
+            update_last_sent_date(NotificationType::Weekly, &week_start_date, component_type).await;
+            sleep(TokioDuration::from_secs(5)).await;
+            continue;
+        }
+
         let result = match notification_type_enum {
             NotificationType::Daily => handler.send_daily_notification(&ctx, channel_id).await,
             NotificationType::Weekly => handler.send_weekly_notification(&ctx, channel_id).await,

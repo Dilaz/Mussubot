@@ -121,6 +121,12 @@ REDIS_URL=redis://redis:6379
 DAILY_NOTIFICATION_TIME=06:00
 WEEKLY_NOTIFICATION_TIME=06:00
 
+# Disable daily work schedule notifications (true/false or 1/0; default: false)
+DISABLE_WORK_SCHEDULE_DAILY_NOTIFICATIONS=false
+
+# Disable weekly work schedule notifications (true/false or 1/0; default: false)
+DISABLE_WORK_SCHEDULE_WEEKLY_NOTIFICATIONS=false
+
 # Calendar events checking interval in seconds (default: 300)
 NEW_EVENTS_CHECK_INTERVAL=300
 ```

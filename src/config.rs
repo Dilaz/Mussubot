@@ -42,6 +42,10 @@ pub struct Config {
     pub new_events_check_interval: u64,
     /// LlamaIndex API Key
     pub llama_api_key: String,
+    /// When true, disables daily work schedule notifications
+    pub disable_work_schedule_daily_notifications: bool,
+    /// When true, disables weekly work schedule notifications
+    pub disable_work_schedule_weekly_notifications: bool,
 }
 
 impl Config {
@@ -98,6 +102,19 @@ impl Config {
         // LlamaIndex API Key
         let llama_api_key = env::var("LLAMA_API_KEY").unwrap_or_default();
 
+        // Work Schedule daily notifications toggle (default: enabled)
+        let disable_work_schedule_daily_notifications =
+            env::var("DISABLE_WORK_SCHEDULE_DAILY_NOTIFICATIONS")
+                .ok()
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+
+        let disable_work_schedule_weekly_notifications =
+            env::var("DISABLE_WORK_SCHEDULE_WEEKLY_NOTIFICATIONS")
+                .ok()
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+
         // Initialize default components
         let mut components = HashMap::new();
         components.insert("google_calendar".to_string(), true);
@@ -128,6 +145,8 @@ impl Config {
             bot_locale,
             new_events_check_interval,
             llama_api_key,
+            disable_work_schedule_daily_notifications,
+            disable_work_schedule_weekly_notifications,
         })
     }
 
