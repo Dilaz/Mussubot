@@ -19,6 +19,7 @@
   "calendar_error_fetching": "Virhe haettaessa tapahtumia: %{error}",
   "calendar_next_week": "Ensi viikko",
   "calendar_no_events_today": "Ei kalenteritapahtumia tänään",
+  "calendar_no_events_week": "Ei tapahtumia tälle viikolle!",
 
   "work_schedule_daily_greeting": "Huomenta! Tässä on tämän päivän ja huomisen työvuorot:",
   "work_schedule_daily_title": "Työvuorot (%{date})",

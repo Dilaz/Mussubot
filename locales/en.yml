@@ -19,6 +19,7 @@
   "calendar_error_fetching": "Error fetching events: %{error}",
   "calendar_next_week": "Next Week",
   "calendar_no_events_today": "No calendar events today",
+  "calendar_no_events_week": "No events scheduled for this week!",
 
   "work_schedule_daily_greeting": "Good morning! Here's today's and tomorrow's work schedules:",
   "work_schedule_daily_title": "Work Schedules (%{date})",
