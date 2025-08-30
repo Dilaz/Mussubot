@@ -156,9 +156,8 @@ jobs:
       
       - name: Prepare manifests
         run: |
-          TAG=$(echo ${{ github.sha }} | cut -c1-7)
           mkdir -p prepared-manifests
-          cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.BOT_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|$TAG|g" > prepared-manifests/deployment.yaml
+          cat k8s/mussubotti-deployment.yaml | sed "s|\${IMAGE_REPO}|${{ env.BOT_IMAGE_NAME }}|g" | sed "s|\${IMAGE_TAG}|${{ github.sha }}|g" > prepared-manifests/deployment.yaml
       
       - name: Deploy to the Kubernetes cluster
         uses: azure/k8s-deploy@v4
@@ -168,8 +167,6 @@ jobs:
           strategy: basic
           manifests: |
             prepared-manifests/deployment.yaml
-          images: |
-            ghcr.io/dilaz/mussubotti:${{ github.sha }}
   
   rollback:
     if: failure()
